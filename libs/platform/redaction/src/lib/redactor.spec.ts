@@ -107,7 +107,7 @@ describe('redaction by key', () => {
 
 describe('redaction by shape', () => {
   const jwt =
-    'eyJhbGciOiJFUzI1NiIsImtpZCI6ImdhdGV3YXktMSJ9.eyJpc3MiOiJnYXRld2F5Iiwic3ViIjoidTEifQ.c2lnbmF0dXJlLWJ5dGVzLWhlcmU';
+    'eyJhbGciOiJFUzI1NiIsImtpZCI6ImdhdGV3YXktMSJ9.eyJpc3MiOiJnYXRld2F5Iiwic3ViIjoidTEifQ.c2lnbmF0dXJlLWJ5dGVzLWhlcmU'; // gitleaks:allow (a made-up token for the test)
 
   it('replaces a JWT wherever it appears', () => {
     expect(redactText(`verification failed for ${jwt} at core`)).toBe(

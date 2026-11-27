@@ -1,0 +1,15 @@
+# Findings the secret scanner may skip. One per line: commit:file:rule:line.
+#
+# Add an entry only for a value that is certainly not a secret, and say why.
+# For a fake value in a fixture, prefer the inline marker "gitleaks:allow" on
+# the line itself: it stays correct when a commit is squashed or rebased.
+#
+# The five below are the invented test values in platform/testing's canaries
+# and platform/redaction's tests, as first pushed in PR 22 before those lines
+# carried the inline marker. They can be deleted once that PR is merged, since
+# the commit they name does not exist on main.
+0a2365659a2637499f072c1688e84700d96e0fa6:libs/platform/redaction/src/lib/redactor.spec.ts:jwt:110
+0a2365659a2637499f072c1688e84700d96e0fa6:libs/platform/testing/src/lib/canaries.ts:generic-api-key:22
+0a2365659a2637499f072c1688e84700d96e0fa6:libs/platform/testing/src/lib/canaries.ts:generic-api-key:31
+0a2365659a2637499f072c1688e84700d96e0fa6:libs/platform/testing/src/lib/canaries.ts:generic-api-key:33
+0a2365659a2637499f072c1688e84700d96e0fa6:libs/platform/testing/src/lib/canaries.ts:jwt:17

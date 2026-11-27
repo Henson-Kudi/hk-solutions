@@ -12,14 +12,21 @@
  * Use them in any lib that writes logs or builds responses.
  */
 
+/*
+ * Every value below is invented. They look like secrets on purpose, so the
+ * secret scanner in CI flags them: each flagged line carries the marker
+ * "gitleaks:allow". Keep the marker on the line if you edit one, and never
+ * put a real value in this file.
+ */
+
 /** A signed-looking token. Three base64url parts, like a real JWT. */
 const JWT =
-  'eyJhbGciOiJFUzI1NiIsImtpZCI6ImNhbmFyeSJ9.eyJzdWIiOiJjYW5hcnktdXNlci03NzMxIn0.Y2FuYXJ5LXNpZ25hdHVyZS03NzMx';
+  'eyJhbGciOiJFUzI1NiIsImtpZCI6ImNhbmFyeSJ9.eyJzdWIiOiJjYW5hcnktdXNlci03NzMxIn0.Y2FuYXJ5LXNpZ25hdHVyZS03NzMx'; // gitleaks:allow
 
 /** Every canary, by the kind of secret it stands for. The values are fake. */
 export const CANARIES = {
   jwt: JWT,
-  password: 'canary-Passw0rd-7731',
+  password: 'canary-Passw0rd-7731', // gitleaks:allow
   otp: '773155',
   /** In international format, so it is recognisable anywhere in a string. */
   phoneInternational: '+237677007731',
@@ -28,9 +35,9 @@ export const CANARIES = {
   idNumber: 'CANARY-ID-7731-CM',
   /** A test card number that passes the Luhn check. */
   card: '4111111111111111',
-  connectionPassword: 'canary-db-pass-7731',
+  connectionPassword: 'canary-db-pass-7731', // gitleaks:allow
   requestBody: 'canary-request-body-7731',
-  apiKey: 'canary-api-key-7731',
+  apiKey: 'canary-api-key-7731', // gitleaks:allow
 } as const;
 
 export type CanaryName = keyof typeof CANARIES;
