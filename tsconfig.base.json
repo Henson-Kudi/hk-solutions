@@ -28,7 +28,8 @@
       "@hk/platform/redis": ["./libs/platform/redis/src/index.ts"],
       "@hk/platform/queue": ["./libs/platform/queue/src/index.ts"],
       "@hk/platform/http": ["./libs/platform/http/src/index.ts"],
-      "@hk/platform/nest": ["./libs/platform/nest/src/index.ts"]
+      "@hk/platform/nest": ["./libs/platform/nest/src/index.ts"],
+      "@hk/platform/db": ["./libs/platform/db/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
