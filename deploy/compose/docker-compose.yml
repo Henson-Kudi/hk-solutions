@@ -32,7 +32,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     # BullMQ needs noeviction: when memory is full Redis must refuse writes,
     # never drop queued jobs. appendonly keeps the queues across restarts.
