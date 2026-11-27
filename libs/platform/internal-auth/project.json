@@ -1,0 +1,28 @@
+{
+  "name": "platform-internal-auth",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/internal-auth/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/internal-auth",
+        "tsConfig": "libs/platform/internal-auth/tsconfig.lib.json",
+        "packageJson": "libs/platform/internal-auth/package.json",
+        "main": "libs/platform/internal-auth/src/index.ts",
+        "assets": ["libs/platform/internal-auth/*.md"]
+      }
+    },
+    "test": {
+      "options": {
+        "env": {
+          "...": true,
+          "NODE_OPTIONS": "--experimental-vm-modules"
+        }
+      }
+    }
+  }
+}

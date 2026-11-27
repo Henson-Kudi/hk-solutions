@@ -11,6 +11,7 @@ these before proposing a change to how the repo is structured.
 | [0004](./0004-tenant-isolation-in-postgres.md)  | How tenant isolation is enforced in PostgreSQL                     | Accepted |
 | [0005](./0005-idempotency-outbox-inbox.md)      | Idempotency, outbox and inbox                                      | Accepted |
 | [0006](./0006-idempotency-over-http.md)         | Idempotency over HTTP, route coverage and key cleanup              | Accepted |
+| [0007](./0007-internal-auth-tokens.md)          | Internal authentication tokens                                     | Accepted |
 
 ## Adding one
 

@@ -163,6 +163,29 @@ describe('createHttpClient', () => {
       });
     });
 
+    it('waits for context headers that are produced asynchronously, such as a signed token', async () => {
+      replies.push(json(200, {}));
+      await client({
+        headers: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return { authorization: 'Bearer signed-token' };
+        },
+      }).get('/x');
+      expect(seen[0]?.headers['authorization']).toBe('Bearer signed-token');
+    });
+
+    it('does not send the request when the context headers cannot be built', async () => {
+      const failure = new Error('signing key unavailable');
+      await expect(
+        client({
+          headers: async () => {
+            throw failure;
+          },
+        }).get('/x'),
+      ).rejects.toBe(failure);
+      expect(seen).toHaveLength(0);
+    });
+
     it('adds context headers on every attempt, and lets a request override them', async () => {
       replies.push(json(503, {}), json(200, {}));
       let calls = 0;
