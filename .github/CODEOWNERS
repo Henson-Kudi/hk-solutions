@@ -1,0 +1,34 @@
+# Everything is reviewed by Henson.
+* @Henson-Kudi
+
+# Paths that need a line-by-line review (see "Review" in CLAUDE.md).
+# They have the same owner today; they are listed so the list lives next to
+# the code and so a second reviewer can be added per path later.
+
+# Ledger and money
+/libs/core/ledger/                    @Henson-Kudi
+/libs/core/accounts/                  @Henson-Kudi
+/libs/core/payments*/                 @Henson-Kudi
+/libs/core/billing/                   @Henson-Kudi
+/libs/core/entitlements/              @Henson-Kudi
+
+# Platform safety nets
+/libs/platform/db/                    @Henson-Kudi
+/libs/platform/idempotency/           @Henson-Kudi
+/libs/platform/outbox/                @Henson-Kudi
+/libs/platform/inbox/                 @Henson-Kudi
+/libs/platform/internal-auth/         @Henson-Kudi
+
+# Statutory rates and rules
+/libs/country-packs/*/tax/            @Henson-Kudi
+/libs/country-packs/*/payroll/        @Henson-Kudi
+
+# Database migrations, wherever they live
+migrations/                           @Henson-Kudi
+
+# The rules themselves
+/CLAUDE.md                            @Henson-Kudi
+/.github/                             @Henson-Kudi
+/eslint.config.mjs                    @Henson-Kudi
+/.dependency-cruiser.cjs              @Henson-Kudi
+/tools/eslint/                        @Henson-Kudi

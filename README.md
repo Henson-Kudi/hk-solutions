@@ -8,12 +8,13 @@ Working rules for contributors and for Claude Code are in [CLAUDE.md](./CLAUDE.m
 
 - Node 24 (`nvm use` reads `.nvmrc`)
 - pnpm 12 (`corepack enable` picks the version pinned in `package.json`)
-- Docker, for local Postgres and Redis (added in a later phase 0 PR)
+- Docker, for local Postgres 17 and Redis 7
 
 ## Getting started
 
 ```sh
 pnpm install
+pnpm infra:up                          # Postgres on 127.0.0.1:54320, Redis on 127.0.0.1:63790
 pnpm nx graph                          # explore the project graph
 pnpm nx run-many -t lint test build    # run everything
 pnpm nx affected -t lint typecheck test build   # run only what a change touches
@@ -38,6 +39,13 @@ pnpm verify:boundaries       # self-test: plants each violation and checks it is
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org). A husky hook checks the
 message with commitlint and runs ESLint and Prettier on staged files.
+
+## Pull requests
+
+Every pull request runs `.github/workflows/pr-checks.yml`: formatting, commit messages, lint,
+typecheck, test and build for affected projects, the dependency rules, the boundary self-test and a
+secret scan. `main` only accepts squash or rebase merges with `pr-checks` green; the ruleset is in
+`.github/rulesets/`.
 
 ## Layout
 

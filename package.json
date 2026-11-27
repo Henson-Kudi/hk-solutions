@@ -8,7 +8,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "depcruise": "depcruise apps libs --config .dependency-cruiser.cjs",
-    "verify:boundaries": "node tools/scripts/verify-boundaries.mjs"
+    "verify:boundaries": "node tools/scripts/verify-boundaries.mjs",
+    "lint:root": "eslint tools \"*.{mjs,cjs,js,ts}\"",
+    "infra:up": "docker compose -f deploy/compose/docker-compose.yml up -d --wait",
+    "infra:down": "docker compose -f deploy/compose/docker-compose.yml down"
   },
   "engines": {
     "node": ">=24",

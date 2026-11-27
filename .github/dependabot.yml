@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Wait a week after a release before proposing it, so a compromised or
+    # broken version is usually pulled before it reaches us.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    ignore:
+      # Nx and its plugins move together and ship code migrations.
+      # Upgrade them with `nx migrate latest`, never one package at a time.
+      - dependency-name: nx
+      - dependency-name: '@nx/*'
+    groups:
+      lint-and-format:
+        patterns:
+          - eslint
+          - eslint-*
+          - '@eslint/*'
+          - typescript-eslint
+          - jsonc-eslint-parser
+          - prettier
+          - '@commitlint/*'
+          - husky
+          - lint-staged
+          - dependency-cruiser
+      test:
+        patterns:
+          - jest
+          - jest-*
+          - ts-jest
+          - '@types/jest'
+          - vitest
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker-compose
+    directory: /deploy/compose
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore
+      include: scope
