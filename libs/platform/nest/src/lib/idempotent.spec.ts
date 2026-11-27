@@ -46,10 +46,8 @@ import { IDEMPOTENCY } from './tokens';
 /**
  * FAILURE-PATH TESTS FOR A MONEY PATH (plan row 1.4).
  *
- * These were written and reviewed before the implementation. Each is marked
- * `it.failing`: Jest reports it as passing only while its body fails, and
- * fails the run if it ever passes by accident. When the implementation lands,
- * `it.failing` becomes `it` and nothing else in a test changes. If a test
+ * These were written and reviewed before the implementation, and merged while
+ * it did not exist (each was marked it.failing). They are the contract. If a
  * looks wrong, stop and raise it. Do not edit it to make the code pass.
  *
  * The HTTP tests need a real PostgreSQL (see HK_TEST_DATABASE_URL).
@@ -226,68 +224,56 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
   });
 
   describe('missing key', () => {
-    it.failing(
-      'answers 400 with problem details, and does not run the handler',
-      async () => {
-        const response = await create(undefined).expect(400);
-        expect(response.headers['content-type']).toContain(
-          'application/problem+json',
-        );
-        expect(JSON.parse(response.text)).toMatchObject({
-          status: 400,
-          code: 'IDEMPOTENCY_KEY_MISSING',
-        });
-        expect(state.runs).toBe(0);
-        expect(await payments()).toEqual([]);
-      },
-    );
+    it('answers 400 with problem details, and does not run the handler', async () => {
+      const response = await create(undefined).expect(400);
+      expect(response.headers['content-type']).toContain(
+        'application/problem+json',
+      );
+      expect(JSON.parse(response.text)).toMatchObject({
+        status: 400,
+        code: 'IDEMPOTENCY_KEY_MISSING',
+      });
+      expect(state.runs).toBe(0);
+      expect(await payments()).toEqual([]);
+    });
   });
 
   describe('first use and replay', () => {
-    it.failing(
-      'runs the handler and answers normally, without the replay header',
-      async () => {
-        const response = await create('key-1').expect(201);
-        expect(response.body).toEqual({ paymentId: 'pay-1', amount: '100.00' });
-        expect(response.headers['idempotent-replayed']).toBeUndefined();
-        expect(await payments()).toEqual(['payment 1']);
-      },
-    );
+    it('runs the handler and answers normally, without the replay header', async () => {
+      const response = await create('key-1').expect(201);
+      expect(response.body).toEqual({ paymentId: 'pay-1', amount: '100.00' });
+      expect(response.headers['idempotent-replayed']).toBeUndefined();
+      expect(await payments()).toEqual(['payment 1']);
+    });
 
-    it.failing(
-      'replays the stored response with Idempotent-Replayed: true',
-      async () => {
-        const first = await create('key-1').expect(201);
-        const second = await create('key-1').expect(201);
-        const third = await create('key-1').expect(201);
+    it('replays the stored response with Idempotent-Replayed: true', async () => {
+      const first = await create('key-1').expect(201);
+      const second = await create('key-1').expect(201);
+      const third = await create('key-1').expect(201);
 
-        expect(second.body).toEqual(first.body);
-        expect(third.body).toEqual(first.body);
-        expect(second.headers['idempotent-replayed']).toBe('true');
-        expect(third.headers['idempotent-replayed']).toBe('true');
-        expect(state.runs).toBe(1);
-        expect(await payments()).toEqual(['payment 1']);
-      },
-    );
+      expect(second.body).toEqual(first.body);
+      expect(third.body).toEqual(first.body);
+      expect(second.headers['idempotent-replayed']).toBe('true');
+      expect(third.headers['idempotent-replayed']).toBe('true');
+      expect(state.runs).toBe(1);
+      expect(await payments()).toEqual(['payment 1']);
+    });
 
-    it.failing(
-      'replays the status code of a handler with its own',
-      async () => {
-        const first = await http()
-          .post('/payments/p1/capture')
-          .set('Idempotency-Key', 'key-1')
-          .expect(202);
-        const replay = await http()
-          .post('/payments/p1/capture')
-          .set('Idempotency-Key', 'key-1')
-          .expect(202);
-        expect(replay.body).toEqual(first.body);
-        expect(replay.headers['idempotent-replayed']).toBe('true');
-        expect(state.runs).toBe(1);
-      },
-    );
+    it('replays the status code of a handler with its own', async () => {
+      const first = await http()
+        .post('/payments/p1/capture')
+        .set('Idempotency-Key', 'key-1')
+        .expect(202);
+      const replay = await http()
+        .post('/payments/p1/capture')
+        .set('Idempotency-Key', 'key-1')
+        .expect(202);
+      expect(replay.body).toEqual(first.body);
+      expect(replay.headers['idempotent-replayed']).toBe('true');
+      expect(state.runs).toBe(1);
+    });
 
-    it.failing('replays an empty 204 answer', async () => {
+    it('replays an empty 204 answer', async () => {
       await http()
         .delete('/payments/p1')
         .set('Idempotency-Key', 'key-1')
@@ -301,7 +287,7 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
       expect(state.runs).toBe(1);
     });
 
-    it.failing('covers PUT as well as POST and DELETE', async () => {
+    it('covers PUT as well as POST and DELETE', async () => {
       await http()
         .put('/payments/p1')
         .set('Idempotency-Key', 'key-1')
@@ -316,7 +302,7 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
   });
 
   describe('a key reused for something else', () => {
-    it.failing('answers 422 when the body differs', async () => {
+    it('answers 422 when the body differs', async () => {
       await create('key-1', { amount: '100.00' }).expect(201);
       const response = await create('key-1', { amount: '999.00' }).expect(422);
       expect(JSON.parse(response.text)).toMatchObject({
@@ -327,7 +313,7 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
       expect(await payments()).toEqual(['payment 1']);
     });
 
-    it.failing('answers 422 when the path parameter differs', async () => {
+    it('answers 422 when the path parameter differs', async () => {
       await http()
         .post('/payments/p1/capture')
         .set('Idempotency-Key', 'key-1')
@@ -339,7 +325,7 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
       expect(state.runs).toBe(1);
     });
 
-    it.failing('answers 422 when the query differs', async () => {
+    it('answers 422 when the query differs', async () => {
       await http()
         .post('/payments/p1/capture?mode=full')
         .set('Idempotency-Key', 'key-1')
@@ -351,115 +337,100 @@ describeWithPostgres('@Idempotent() over HTTP', () => {
       expect(state.runs).toBe(1);
     });
 
-    it.failing(
-      'answers 422 when the same key is sent to another route',
-      async () => {
-        await create('key-1').expect(201);
-        await http()
-          .put('/payments/p1')
-          .set('Idempotency-Key', 'key-1')
-          .expect(422);
-        expect(state.runs).toBe(1);
-      },
-    );
+    it('answers 422 when the same key is sent to another route', async () => {
+      await create('key-1').expect(201);
+      await http()
+        .put('/payments/p1')
+        .set('Idempotency-Key', 'key-1')
+        .expect(422);
+      expect(state.runs).toBe(1);
+    });
   });
 
   describe('a request still in flight', () => {
-    it.failing(
-      'answers 409 with Retry-After to a second request with the same key',
-      async () => {
-        const hold = { inside: deferred(), gate: deferred() };
-        state.hold = hold;
-        const first = create('key-1').then((response) => response);
-        // If the first request ends before reaching the handler, fail now instead of waiting.
-        await Promise.race([
-          hold.inside.promise,
-          first.then(() => {
-            throw new Error(
-              'the first request ended without entering the handler',
-            );
-          }),
-        ]);
+    it('answers 409 with Retry-After to a second request with the same key', async () => {
+      const hold = { inside: deferred(), gate: deferred() };
+      state.hold = hold;
+      const first = create('key-1').then((response) => response);
+      // If the first request ends before reaching the handler, fail now instead of waiting.
+      await Promise.race([
+        hold.inside.promise,
+        first.then(() => {
+          throw new Error(
+            'the first request ended without entering the handler',
+          );
+        }),
+      ]);
 
-        try {
-          const second = await create('key-1').expect(409);
-          expect(JSON.parse(second.text)).toMatchObject({
-            status: 409,
-            code: 'IDEMPOTENCY_IN_FLIGHT',
-          });
-          expect(second.headers['retry-after']).toBeDefined();
-        } finally {
-          // Whatever happened above, let the first request finish, so a
-          // failure here cannot leave a transaction open behind it.
-          hold.gate.resolve();
-        }
-        expect((await first).status).toBe(201);
-        expect(state.runs).toBe(1);
+      try {
+        const second = await create('key-1').expect(409);
+        expect(JSON.parse(second.text)).toMatchObject({
+          status: 409,
+          code: 'IDEMPOTENCY_IN_FLIGHT',
+        });
+        expect(second.headers['retry-after']).toBeDefined();
+      } finally {
+        // Whatever happened above, let the first request finish, so a
+        // failure here cannot leave a transaction open behind it.
+        hold.gate.resolve();
+      }
+      expect((await first).status).toBe(201);
+      expect(state.runs).toBe(1);
 
-        const replay = await create('key-1').expect(201);
-        expect(replay.headers['idempotent-replayed']).toBe('true');
-        expect(await payments()).toEqual(['payment 1']);
-      },
-    );
+      const replay = await create('key-1').expect(201);
+      expect(replay.headers['idempotent-replayed']).toBe('true');
+      expect(await payments()).toEqual(['payment 1']);
+    });
   });
 
   describe('a handler that fails', () => {
-    it.failing(
-      "answers with the handler's own error, stores nothing, and lets the key retry",
-      async () => {
-        state.failNext = true;
-        const failed = await create('key-1').expect(409);
-        expect(JSON.parse(failed.text)).toMatchObject({
-          code: 'PAYMENT_DECLINED',
-        });
-        expect(failed.headers['idempotent-replayed']).toBeUndefined();
-        // The write the handler made before failing is rolled back with it.
-        expect(await payments()).toEqual([]);
+    it("answers with the handler's own error, stores nothing, and lets the key retry", async () => {
+      state.failNext = true;
+      const failed = await create('key-1').expect(409);
+      expect(JSON.parse(failed.text)).toMatchObject({
+        code: 'PAYMENT_DECLINED',
+      });
+      expect(failed.headers['idempotent-replayed']).toBeUndefined();
+      // The write the handler made before failing is rolled back with it.
+      expect(await payments()).toEqual([]);
 
-        const retry = await create('key-1').expect(201);
-        expect(retry.body).toEqual({ paymentId: 'pay-2', amount: '100.00' });
-        expect(retry.headers['idempotent-replayed']).toBeUndefined();
-        expect(await payments()).toEqual(['payment 2']);
-        expect(state.runs).toBe(2);
-      },
-    );
+      const retry = await create('key-1').expect(201);
+      expect(retry.body).toEqual({ paymentId: 'pay-2', amount: '100.00' });
+      expect(retry.headers['idempotent-replayed']).toBeUndefined();
+      expect(await payments()).toEqual(['payment 2']);
+      expect(state.runs).toBe(2);
+    });
   });
 
   describe('handlers that are not @Idempotent()', () => {
-    it.failing(
-      'lets an exempt handler run without a key, every time',
-      async () => {
-        await http().post('/payments/webhook').expect(201);
-        await http().post('/payments/webhook').expect(201);
-        expect(state.runs).toBe(2);
-      },
-    );
+    it('lets an exempt handler run without a key, every time', async () => {
+      await http().post('/payments/webhook').expect(201);
+      await http().post('/payments/webhook').expect(201);
+      expect(state.runs).toBe(2);
+    });
 
-    it.failing('leaves reads alone', async () => {
+    it('leaves reads alone', async () => {
       const response = await http().get('/payments/p1').expect(200);
       expect(response.body).toEqual({ id: 'p1' });
       expect(response.headers['idempotent-replayed']).toBeUndefined();
     });
 
-    it.failing(
-      'refuses to run a write handler that declares nothing, and logs why',
-      async () => {
-        const response = await http()
-          .patch('/payments/undeclared')
-          .set('Idempotency-Key', 'key-1')
-          .expect(500);
-        expect(JSON.parse(response.text)).toMatchObject({
-          code: 'INTERNAL_ERROR',
-        });
-        expect(state.runs).toBe(0);
-        expect(memory.entries).toContainEqual(
-          expect.objectContaining({
-            level: 'error',
-            err: expect.objectContaining({ code: 'IDEMPOTENCY_NOT_DECLARED' }),
-          }),
-        );
-      },
-    );
+    it('refuses to run a write handler that declares nothing, and logs why', async () => {
+      const response = await http()
+        .patch('/payments/undeclared')
+        .set('Idempotency-Key', 'key-1')
+        .expect(500);
+      expect(JSON.parse(response.text)).toMatchObject({
+        code: 'INTERNAL_ERROR',
+      });
+      expect(state.runs).toBe(0);
+      expect(memory.entries).toContainEqual(
+        expect.objectContaining({
+          level: 'error',
+          err: expect.objectContaining({ code: 'IDEMPOTENCY_NOT_DECLARED' }),
+        }),
+      );
+    });
   });
 });
 
@@ -520,56 +491,47 @@ describe('findUncoveredRoutes', () => {
     }
   }
 
-  it.failing(
-    'is empty when every write handler declares its idempotency',
-    () => {
-      expect(findUncoveredRoutes([GoodController])).toEqual([]);
-    },
-  );
+  it('is empty when every write handler declares its idempotency', () => {
+    expect(findUncoveredRoutes([GoodController])).toEqual([]);
+  });
 
-  it.failing(
-    'lists write handlers that declare nothing, both, or an empty reason',
-    () => {
-      expect(findUncoveredRoutes([GoodController, BadController])).toEqual([
-        {
-          controller: 'BadController',
-          handler: 'create',
-          method: 'POST',
-          problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
-        },
-        {
-          controller: 'BadController',
-          handler: 'replace',
-          method: 'PUT',
-          problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
-        },
-        {
-          controller: 'BadController',
-          handler: 'change',
-          method: 'PATCH',
-          problem: 'has both @Idempotent() and @IdempotencyExempt(reason)',
-        },
-        {
-          controller: 'BadController',
-          handler: 'remove',
-          method: 'DELETE',
-          problem: '@IdempotencyExempt needs a reason',
-        },
-      ]);
-    },
-  );
+  it('lists write handlers that declare nothing, both, or an empty reason', () => {
+    expect(findUncoveredRoutes([GoodController, BadController])).toEqual([
+      {
+        controller: 'BadController',
+        handler: 'create',
+        method: 'POST',
+        problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
+      },
+      {
+        controller: 'BadController',
+        handler: 'replace',
+        method: 'PUT',
+        problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
+      },
+      {
+        controller: 'BadController',
+        handler: 'change',
+        method: 'PATCH',
+        problem: 'has both @Idempotent() and @IdempotencyExempt(reason)',
+      },
+      {
+        controller: 'BadController',
+        handler: 'remove',
+        method: 'DELETE',
+        problem: '@IdempotencyExempt needs a reason',
+      },
+    ]);
+  });
 
-  it.failing(
-    'finds the write handlers of the controller used in the HTTP tests',
-    () => {
-      expect(findUncoveredRoutes([PaymentsController])).toEqual([
-        {
-          controller: 'PaymentsController',
-          handler: 'undeclared',
-          method: 'PATCH',
-          problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
-        },
-      ]);
-    },
-  );
+  it('finds the write handlers of the controller used in the HTTP tests', () => {
+    expect(findUncoveredRoutes([PaymentsController])).toEqual([
+      {
+        controller: 'PaymentsController',
+        handler: 'undeclared',
+        method: 'PATCH',
+        problem: 'has neither @Idempotent() nor @IdempotencyExempt(reason)',
+      },
+    ]);
+  });
 });

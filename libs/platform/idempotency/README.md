@@ -30,6 +30,20 @@ Three points behind that table:
 - **Keys are scoped** to the tenant and business of the request, or to "public" before sign-in.
 - **Only a hash of the request is stored**, never the request.
 
+## Cleanup
+
+`createIdempotencyCleanup({ database, table }).purge()` deletes keys past their retention, oldest
+first, one batch per call, and returns the count. Call it from a scheduled job, again while it
+returns a full batch.
+
+- A key still in flight with a live lease is never deleted.
+- A purged key counts as never used.
+
+## Over HTTP
+
+`@Idempotent()`, `@IdempotencyExempt(reason)` and the interceptor are in `@hk/platform/nest`. See
+ADR 0006.
+
 ## Tests
 
 ```sh
