@@ -1,12 +1,12 @@
 import type { Database } from '@hk/platform/db';
-import type { Clock } from '@hk/platform/universal';
+import { systemClock, type Clock } from '@hk/platform/universal';
+import { and, asc, inArray, isNull, lte, ne, or } from 'drizzle-orm';
 import type { IdempotencyKeysTable } from './idempotency';
 
 /**
- * CONTRACT ONLY. Failure-path tests first (plan row 1.4, a money-path row).
- * createIdempotencyCleanup() is not implemented yet: every call throws. The
- * tests in cleanup.spec.ts are marked `it.failing` until the implementation
- * lands, and they are not to be changed to make it pass.
+ * A money path (plan row 1.4). The tests in cleanup.spec.ts were written and
+ * reviewed before this implementation, and are not to be changed to make code
+ * pass. Changes here need Henson's line-by-line review.
  */
 
 export interface IdempotencyCleanupOptions {
@@ -35,11 +35,41 @@ export interface IdempotencyCleanup {
 }
 
 export const createIdempotencyCleanup = (
-  _options: IdempotencyCleanupOptions,
-): IdempotencyCleanup => ({
-  purge: () => {
-    throw new Error(
-      'platform/idempotency cleanup is not implemented yet (plan row 1.4).',
-    );
-  },
-});
+  options: IdempotencyCleanupOptions,
+): IdempotencyCleanup => {
+  const { database, table } = options;
+  const clock = options.clock ?? systemClock;
+  const batchSize = options.batchSize ?? 1_000;
+
+  return {
+    purge: async () => {
+      const now = clock.now();
+      // One statement. The inner query picks the batch and locks it, skipping
+      // rows another cleanup run already holds, so two runs never wait on
+      // each other. A key that is IN_PROGRESS with a lease still in the
+      // future is left alone whatever its expires_at says.
+      const batch = database.drizzle
+        .select({ id: table.id })
+        .from(table)
+        .where(
+          and(
+            lte(table.expiresAt, now),
+            or(
+              ne(table.status, 'IN_PROGRESS'),
+              isNull(table.leaseExpiresAt),
+              lte(table.leaseExpiresAt, now),
+            ),
+          ),
+        )
+        .orderBy(asc(table.expiresAt), asc(table.id))
+        .limit(batchSize)
+        .for('update', { skipLocked: true });
+
+      const deleted = await database.drizzle
+        .delete(table)
+        .where(inArray(table.id, batch))
+        .returning({ id: table.id });
+      return deleted.length;
+    },
+  };
+};

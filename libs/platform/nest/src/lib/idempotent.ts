@@ -1,22 +1,28 @@
-import type { Idempotency } from '@hk/platform/idempotency';
+import 'reflect-metadata';
+import { AppError } from '@hk/platform/errors';
+import {
+  IDEMPOTENCY_KEY_HEADER,
+  IDEMPOTENT_REPLAYED_HEADER,
+  type Idempotency,
+} from '@hk/platform/idempotency';
 import {
   Inject,
   Injectable,
+  RequestMethod,
   SetMetadata,
   type CallHandler,
   type ExecutionContext,
   type NestInterceptor,
 } from '@nestjs/common';
+import { HTTP_CODE_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
-import type { Observable } from 'rxjs';
+import { from, lastValueFrom, throwError, type Observable } from 'rxjs';
 import { IDEMPOTENCY } from './tokens';
 
 /**
- * CONTRACT ONLY. Failure-path tests first (plan row 1.4, a money-path row).
- * The two decorators below only record metadata and are real. The
- * interceptor and findUncoveredRoutes() are not implemented yet: they throw.
- * The tests in idempotent.spec.ts are marked `it.failing` until the
- * implementation lands, and they are not to be changed to make it pass.
+ * A money path (plan row 1.4). The tests in idempotent.spec.ts were written
+ * and reviewed before this implementation, and are not to be changed to make
+ * code pass. Changes here need Henson's line-by-line review.
  */
 
 export const IDEMPOTENT_METADATA = 'hk:idempotent';
@@ -76,15 +82,123 @@ export class IdempotencyInterceptor implements NestInterceptor {
     protected readonly reflector: Reflector,
   ) {}
 
-  intercept(
-    _context: ExecutionContext,
-    _next: CallHandler,
-  ): Observable<unknown> {
-    throw new Error(
-      'IdempotencyInterceptor is not implemented yet (plan row 1.4).',
-    );
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (context.getType() !== 'http') {
+      return next.handle();
+    }
+    const http = context.switchToHttp();
+    const request = http.getRequest<IncomingRequest>();
+    const method = (request.method ?? '').toUpperCase();
+    if (!WRITE_METHODS.includes(method)) {
+      return next.handle();
+    }
+
+    const handler = context.getHandler();
+    const declaration = declarationOf(this.reflector, handler);
+    if (declaration.problem !== undefined) {
+      // Fail closed: a write whose idempotency nobody decided does not run.
+      return throwError(
+        () =>
+          new AppError(
+            'IDEMPOTENCY_NOT_DECLARED',
+            500,
+            'A write handler must carry exactly one of @Idempotent() and @IdempotencyExempt(reason).',
+            { details: { problem: declaration.problem as string } },
+          ),
+      );
+    }
+    if (declaration.exempt) {
+      return next.handle();
+    }
+
+    const header = request.headers[IDEMPOTENCY_KEY_HEADER.toLowerCase()];
+    // The route pattern, not the path: /payments/:id/capture. The values of
+    // the parameters are part of the request below.
+    const route = `${request.baseUrl ?? ''}${
+      typeof request.route?.path === 'string' ? request.route.path : ''
+    }`;
+    // What Nest will answer with: the handler's @HttpCode, or its default.
+    const status =
+      this.reflector.get<number | undefined>(HTTP_CODE_METADATA, handler) ??
+      (method === 'POST' ? 201 : 200);
+
+    const run = async (): Promise<unknown> => {
+      const result = await this.idempotency.execute(
+        {
+          key: typeof header === 'string' ? header : undefined,
+          operation: `${method} ${route}`,
+          request: {
+            params: request.params ?? {},
+            query: request.query ?? {},
+            body: request.body ?? null,
+          },
+        },
+        // Subscribing here, inside execute's transaction, is what makes the
+        // handler run in it: Nest calls the handler when next.handle() is
+        // subscribed to.
+        async () => ({
+          status,
+          body: await lastValueFrom(next.handle(), { defaultValue: null }),
+        }),
+      );
+      if (result.replayed) {
+        http
+          .getResponse<OutgoingResponse>()
+          .setHeader(IDEMPOTENT_REPLAYED_HEADER, 'true');
+      }
+      return result.response.body;
+    };
+    return from(run());
   }
 }
+
+const WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+/** The parts of an Express request and response this file uses. */
+interface IncomingRequest {
+  method?: string;
+  headers: Record<string, string | string[] | undefined>;
+  baseUrl?: string;
+  route?: { path?: unknown };
+  params?: unknown;
+  query?: unknown;
+  body?: unknown;
+}
+
+interface OutgoingResponse {
+  setHeader(name: string, value: string): unknown;
+}
+
+const NO_DECLARATION =
+  'has neither @Idempotent() nor @IdempotencyExempt(reason)';
+const BOTH_DECLARATIONS =
+  'has both @Idempotent() and @IdempotencyExempt(reason)';
+const EMPTY_REASON = '@IdempotencyExempt needs a reason';
+
+/** What a handler declared, and what is wrong with it if anything. */
+const declarationOf = (
+  reflector: Reflector,
+  // A route handler as Nest and Reflect see it.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  handler: Function,
+): { exempt: boolean; problem?: string } => {
+  const idempotent =
+    reflector.get<unknown>(IDEMPOTENT_METADATA, handler) === true;
+  const reason = reflector.get<unknown>(IDEMPOTENCY_EXEMPT_METADATA, handler);
+  if (idempotent && reason !== undefined) {
+    return { exempt: false, problem: BOTH_DECLARATIONS };
+  }
+  if (idempotent) {
+    return { exempt: false };
+  }
+  if (reason === undefined) {
+    return { exempt: false, problem: NO_DECLARATION };
+  }
+  if (typeof reason !== 'string' || reason.trim().length === 0) {
+    return { exempt: true, problem: EMPTY_REASON };
+  }
+  return { exempt: true };
+};
 
 export interface UncoveredRoute {
   controller: string;
@@ -107,7 +221,51 @@ export type ControllerClass = abstract new (...args: never[]) => unknown;
  * new write endpoint without a decision fails CI.
  */
 export const findUncoveredRoutes = (
-  _controllers: readonly ControllerClass[],
+  controllers: readonly ControllerClass[],
 ): UncoveredRoute[] => {
-  throw new Error('findUncoveredRoutes is not implemented yet (plan row 1.4).');
+  const reflector = new Reflector();
+  const uncovered: UncoveredRoute[] = [];
+
+  for (const controller of controllers) {
+    const seen = new Set<string>();
+    // Walk up the class chain, so handlers inherited from a base controller count.
+    for (
+      let prototype: object | null = controller.prototype as object;
+      prototype !== null && prototype !== Object.prototype;
+      prototype = Object.getPrototypeOf(prototype) as object | null
+    ) {
+      for (const name of Object.getOwnPropertyNames(prototype)) {
+        if (name === 'constructor' || seen.has(name)) {
+          continue;
+        }
+        seen.add(name);
+        const member = Object.getOwnPropertyDescriptor(prototype, name)?.value;
+        if (typeof member !== 'function') {
+          continue;
+        }
+        // Set by @Get(), @Post() and friends. Absent on a plain method.
+        const verb = Reflect.getMetadata(METHOD_METADATA, member) as
+          | RequestMethod
+          | undefined;
+        if (verb === undefined) {
+          continue;
+        }
+        const method = RequestMethod[verb];
+        // @All() also accepts writes.
+        if (!WRITE_METHODS.includes(method) && method !== 'ALL') {
+          continue;
+        }
+        const { problem } = declarationOf(reflector, member);
+        if (problem !== undefined) {
+          uncovered.push({
+            controller: controller.name,
+            handler: name,
+            method,
+            problem,
+          });
+        }
+      }
+    }
+  }
+  return uncovered;
 };

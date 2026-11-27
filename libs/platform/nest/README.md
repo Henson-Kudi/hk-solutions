@@ -35,6 +35,39 @@ Also here:
 - `ObservabilityModule`: `GET /health/live`, `GET /health/ready` (503 when a dependency is down) and
   `GET /metrics`. They are open and return no error text. The gateway must not route them.
 
+## Idempotent writes
+
+Every POST, PUT, PATCH and DELETE handler carries exactly one of these (ADR 0006):
+
+```ts
+@Post()
+@Idempotent() // needs an Idempotency-Key header; runs at most once per key
+create(@Body(new ZodValidationPipe(schema)) input: CreatePayment) {}
+
+@Post('webhooks/mtn')
+@IdempotencyExempt('deduplicated on the provider reference')
+webhook() {}
+```
+
+Install the interceptor once per app:
+
+```ts
+providers: [
+  { provide: IDEMPOTENCY, useValue: createIdempotency({ database, table: idempotencyKeys }) },
+  { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+],
+```
+
+- An `@Idempotent()` handler runs inside the transaction that records the key, so its writes roll
+  back if it throws. Keep it short and never call a remote service in it.
+- A replay returns the stored status and body with `Idempotent-Replayed: true`.
+- **It fails closed:** a write handler with neither decorator is answered 500 and does not run.
+- Every service has this test, so a forgotten handler fails CI:
+
+  ```ts
+  expect(findUncoveredRoutes([PaymentsController, InvoicesController])).toEqual([]);
+  ```
+
 Request context and logging are middleware, not interceptors, because they must wrap guards, pipes
 and filters and see the final status. They expect the Express adapter.
 
