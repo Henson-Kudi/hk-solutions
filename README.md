@@ -36,6 +36,7 @@ Dependencies point down only, and two tools enforce that on every PR:
 pnpm nx run-many -t lint     # tag rules
 pnpm depcruise               # path rules
 pnpm verify:boundaries       # self-test: plants each violation and checks it is rejected
+pnpm test:hermes             # pure libs: tests without Node, then a real Hermes compile
 ```
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org). A husky hook checks the

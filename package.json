@@ -9,6 +9,7 @@
     "format:check": "prettier --check .",
     "depcruise": "depcruise apps libs --config .dependency-cruiser.cjs",
     "verify:boundaries": "node tools/scripts/verify-boundaries.mjs",
+    "test:hermes": "nx run-many -t test --projects=tag:runtime:universal --configuration=hermes && node tools/scripts/hermes-compile.mjs",
     "lint:root": "eslint tools \"*.{mjs,cjs,js,ts}\"",
     "infra:up": "docker compose -f deploy/compose/docker-compose.yml up -d --wait",
     "infra:down": "docker compose -f deploy/compose/docker-compose.yml down"
@@ -18,6 +19,7 @@
     "pnpm": ">=12"
   },
   "dependencies": {
+    "decimal.js": "^10.6.0",
     "expo": "~56.0.0",
     "next": "~16.4.1",
     "react": "^19.0.0",
@@ -50,6 +52,7 @@
     "husky": "^9.1.7",
     "jest": "^30.5.0",
     "jest-environment-node": "^30.5.0",
+    "jest-runtime": "^30.5.2",
     "jest-util": "~30.3.0",
     "jiti": "2.4.2",
     "jsonc-eslint-parser": "^2.1.0",

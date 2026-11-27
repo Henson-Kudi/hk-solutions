@@ -17,7 +17,9 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
-    "paths": {}
+    "paths": {
+      "@hk/platform/universal": ["./libs/platform/universal/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }

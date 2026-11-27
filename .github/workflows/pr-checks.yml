@@ -57,6 +57,11 @@ jobs:
       - name: Dependency rules
         run: pnpm depcruise
 
+      # Pure libs also run on phones. This runs their tests without Node's
+      # globals and modules, then compiles them with the real Hermes compiler.
+      - name: Hermes-compatible target
+        run: pnpm test:hermes
+
   boundaries:
     name: boundary rules self-test
     runs-on: ubuntu-24.04

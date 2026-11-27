@@ -1,0 +1,35 @@
+{
+  "name": "platform-universal",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/universal/src",
+  "projectType": "library",
+  "tags": ["scope:platform", "runtime:universal"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/universal",
+        "main": "libs/platform/universal/src/index.ts",
+        "tsConfig": "libs/platform/universal/tsconfig.lib.json",
+        "assets": ["libs/platform/universal/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}
