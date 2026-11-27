@@ -19,6 +19,26 @@ pnpm nx run-many -t lint test build    # run everything
 pnpm nx affected -t lint typecheck test build   # run only what a change touches
 ```
 
+## Architecture rules
+
+Dependencies point down only, and two tools enforce that on every PR:
+
+- **ESLint** (`tools/eslint/boundaries.mjs`) decides which project may import which, from the tags in
+  each `project.json`. The tag vocabulary is documented at the top of that file. A project with no
+  tags cannot import anything.
+- **dependency-cruiser** (`.dependency-cruiser.cjs`) checks file paths: no cycles, no deep imports
+  into another lib, no framework or Node built-in in `domain` and `application` code, no reading
+  another service's schema.
+
+```sh
+pnpm nx run-many -t lint     # tag rules
+pnpm depcruise               # path rules
+pnpm verify:boundaries       # self-test: plants each violation and checks it is rejected
+```
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org). A husky hook checks the
+message with commitlint and runs ESLint and Prettier on staged files.
+
 ## Layout
 
 - `apps/` deployable services and frontends
