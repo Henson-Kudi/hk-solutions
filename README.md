@@ -2,7 +2,8 @@
 
 Multi-tenant accounting and business management platform. Nx monorepo, pnpm, Node 24.
 
-Working rules for contributors and for Claude Code are in [CLAUDE.md](./CLAUDE.md).
+Working rules for contributors and for Claude Code are in [CLAUDE.md](./CLAUDE.md). The decisions
+behind the architecture, and the reasons for them, are in [docs/adr](./docs/adr/README.md).
 
 ## Prerequisites
 
