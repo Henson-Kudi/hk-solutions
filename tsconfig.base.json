@@ -29,7 +29,11 @@
       "@hk/platform/queue": ["./libs/platform/queue/src/index.ts"],
       "@hk/platform/http": ["./libs/platform/http/src/index.ts"],
       "@hk/platform/nest": ["./libs/platform/nest/src/index.ts"],
-      "@hk/platform/db": ["./libs/platform/db/src/index.ts"]
+      "@hk/platform/db": ["./libs/platform/db/src/index.ts"],
+      "@hk/platform/testing": ["./libs/platform/testing/src/index.ts"],
+      "@hk/platform/idempotency": ["./libs/platform/idempotency/src/index.ts"],
+      "@hk/platform/outbox": ["./libs/platform/outbox/src/index.ts"],
+      "@hk/platform/inbox": ["./libs/platform/inbox/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

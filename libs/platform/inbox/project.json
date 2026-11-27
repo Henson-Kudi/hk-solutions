@@ -1,0 +1,35 @@
+{
+  "name": "platform-inbox",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/inbox/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/inbox",
+        "main": "libs/platform/inbox/src/index.ts",
+        "tsConfig": "libs/platform/inbox/tsconfig.lib.json",
+        "assets": ["libs/platform/inbox/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        {
+          "env": "HK_TEST_DATABASE_URL"
+        },
+        {
+          "env": "HK_TEST_REDIS_URL"
+        },
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ]
+    }
+  }
+}
