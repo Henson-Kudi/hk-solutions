@@ -11,6 +11,7 @@
     "@hk/platform/logger": "0.0.1",
     "@hk/platform/redis": "0.0.1",
     "@hk/platform/universal": "0.0.1",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "@hk/platform/queue": "0.0.1"
   }
 }

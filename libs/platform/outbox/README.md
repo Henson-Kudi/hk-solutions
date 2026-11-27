@@ -2,9 +2,8 @@
 
 Announces a state change to other services if, and only if, the change committed.
 
-> **Status: contract and failure-path tests only.** This is a money path (plan row 1.4 ⚑), so its
-> tests were written first. Every function throws until the implementation lands. The tests in
-> `outbox.spec.ts` are marked `it.failing` and must not be changed to make code pass.
+This is a money path (plan row 1.4 ⚑). The tests in `outbox.spec.ts` were written and reviewed before
+the implementation and are the contract: they must not be changed to make code pass. See ADR 0005.
 
 Changes here need Henson's line-by-line review.
 

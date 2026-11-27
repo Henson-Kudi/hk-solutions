@@ -8,11 +8,9 @@ import {
 } from 'drizzle-orm/pg-core';
 
 /**
- * CONTRACT ONLY. This file fixes the public shape of platform/inbox so that
- * its failure-path tests can be written and reviewed first (plan row 1.4, a
- * money-path row). createInbox() is not implemented yet: every call throws.
- * The tests in inbox.spec.ts are marked `it.failing` until the implementation
- * lands, and they are not to be changed to make it pass.
+ * A money path (plan row 1.4). The tests in inbox.spec.ts were written and
+ * reviewed before this implementation, and are not to be changed to make code
+ * pass. Changes here need Henson's line-by-line review.
  */
 
 /**
@@ -76,8 +74,21 @@ export interface Inbox {
   ): Promise<InboxOutcome<Result>>;
 }
 
-export const createInbox = (_options: InboxOptions): Inbox => ({
-  once: () => {
-    throw new Error('platform/inbox is not implemented yet (plan row 1.4).');
+export const createInbox = (options: InboxOptions): Inbox => ({
+  once: async (transaction, delivery, effect) => {
+    // The primary key on (consumer, event_id) does the work. A first delivery
+    // inserts. A later one conflicts and inserts nothing. A simultaneous one
+    // blocks on the first's uncommitted row until that transaction ends: if
+    // it committed this is a conflict, if it rolled back this insert succeeds.
+    const inserted = await transaction
+      .insert(options.table)
+      .values({ consumer: delivery.consumer, eventId: delivery.eventId })
+      .onConflictDoNothing()
+      .returning({ eventId: options.table.eventId });
+
+    if (inserted.length === 0) {
+      return { duplicate: true };
+    }
+    return { duplicate: false, result: await effect() };
   },
 });

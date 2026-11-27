@@ -2,9 +2,8 @@
 
 Makes a write happen at most once per `Idempotency-Key`.
 
-> **Status: contract and failure-path tests only.** This is a money path (plan row 1.4 ⚑), so its
-> tests were written first. `createIdempotency()` throws until the implementation lands. The tests
-> in `idempotency.spec.ts` are marked `it.failing` and must not be changed to make code pass.
+This is a money path (plan row 1.4 ⚑). The tests in `idempotency.spec.ts` were written and reviewed before
+the implementation and are the contract: they must not be changed to make code pass. See ADR 0005.
 
 Changes here need Henson's line-by-line review.
 

@@ -29,10 +29,8 @@ import {
 /**
  * FAILURE-PATH TESTS FOR A MONEY PATH (plan row 1.4).
  *
- * These were written and reviewed before the implementation. Each is marked
- * `it.failing`: Jest reports it as passing only while its body fails, and
- * fails the run if it ever passes by accident. When the implementation lands,
- * `it.failing` becomes `it` and nothing else in a test changes. If a test
+ * These were written and reviewed before the implementation, and merged while
+ * it did not exist (each was marked it.failing). They are the contract. If a
  * looks wrong, stop and raise it. Do not edit it to make the code pass.
  *
  * They need a real PostgreSQL (see HK_TEST_DATABASE_URL in the README).
@@ -152,22 +150,19 @@ describeWithPostgres('idempotency', () => {
   });
 
   describe('missing or malformed key', () => {
-    it.failing(
-      'answers 400 without a key, and does not run the handler',
-      async () => {
-        const { state, handler } = payment();
-        expect(
-          await failureOf(idempotency.execute(call(undefined), handler)),
-        ).toEqual({
-          code: IDEMPOTENCY_ERRORS.KEY_MISSING,
-          status: 400,
-        });
-        expect(state.runs).toBe(0);
-        expect(await effects()).toEqual([]);
-      },
-    );
+    it('answers 400 without a key, and does not run the handler', async () => {
+      const { state, handler } = payment();
+      expect(
+        await failureOf(idempotency.execute(call(undefined), handler)),
+      ).toEqual({
+        code: IDEMPOTENCY_ERRORS.KEY_MISSING,
+        status: 400,
+      });
+      expect(state.runs).toBe(0);
+      expect(await effects()).toEqual([]);
+    });
 
-    it.failing.each([
+    it.each([
       ['empty', ''],
       ['only spaces', '   '],
       ['longer than 255 characters', 'k'.repeat(256)],
@@ -184,7 +179,7 @@ describeWithPostgres('idempotency', () => {
   });
 
   describe('first use and replay', () => {
-    it.failing('runs the handler once and returns its response', async () => {
+    it('runs the handler once and returns its response', async () => {
       const { state, handler } = payment();
       const result = await idempotency.execute(call('key-1'), handler);
       expect(result).toEqual({
@@ -198,243 +193,213 @@ describeWithPostgres('idempotency', () => {
       expect(await effects()).toEqual(['payment']);
     });
 
-    it.failing(
-      'replays the stored response and does not run the handler again',
-      async () => {
-        const { state, handler } = payment();
-        const first = await idempotency.execute(call('key-1'), handler);
-        const second = await idempotency.execute(call('key-1'), handler);
-        const third = await idempotency.execute(call('key-1'), handler);
+    it('replays the stored response and does not run the handler again', async () => {
+      const { state, handler } = payment();
+      const first = await idempotency.execute(call('key-1'), handler);
+      const second = await idempotency.execute(call('key-1'), handler);
+      const third = await idempotency.execute(call('key-1'), handler);
 
-        expect(second).toEqual({ response: first.response, replayed: true });
-        expect(third).toEqual({ response: first.response, replayed: true });
-        expect(state.runs).toBe(1);
-        expect(await effects()).toEqual(['payment']);
-      },
-    );
+      expect(second).toEqual({ response: first.response, replayed: true });
+      expect(third).toEqual({ response: first.response, replayed: true });
+      expect(state.runs).toBe(1);
+      expect(await effects()).toEqual(['payment']);
+    });
 
-    it.failing(
-      'replays what was stored, not what the handler would say now',
-      async () => {
-        await idempotency.execute(call('key-1'), async () => ({
-          status: 201,
-          body: { balance: '900.00' },
-        }));
-        const replay = await idempotency.execute(call('key-1'), async () => ({
-          status: 200,
-          body: { balance: '0.00' },
-        }));
-        expect(replay).toEqual({
-          response: { status: 201, body: { balance: '900.00' } },
-          replayed: true,
-        });
-      },
-    );
+    it('replays what was stored, not what the handler would say now', async () => {
+      await idempotency.execute(call('key-1'), async () => ({
+        status: 201,
+        body: { balance: '900.00' },
+      }));
+      const replay = await idempotency.execute(call('key-1'), async () => ({
+        status: 200,
+        body: { balance: '0.00' },
+      }));
+      expect(replay).toEqual({
+        response: { status: 201, body: { balance: '900.00' } },
+        replayed: true,
+      });
+    });
 
-    it.failing(
-      'treats the same request with its keys in another order as the same',
-      async () => {
-        const { state, handler } = payment();
-        await idempotency.execute(
-          call('key-1', {
-            amount: '100.00',
-            currency: 'XAF',
-            lines: [{ a: 1, b: 2 }],
-          }),
-          handler,
-        );
-        const replay = await idempotency.execute(
-          call('key-1', {
-            lines: [{ b: 2, a: 1 }],
-            currency: 'XAF',
-            amount: '100.00',
-          }),
-          handler,
-        );
-        expect(replay.replayed).toBe(true);
-        expect(state.runs).toBe(1);
-      },
-    );
+    it('treats the same request with its keys in another order as the same', async () => {
+      const { state, handler } = payment();
+      await idempotency.execute(
+        call('key-1', {
+          amount: '100.00',
+          currency: 'XAF',
+          lines: [{ a: 1, b: 2 }],
+        }),
+        handler,
+      );
+      const replay = await idempotency.execute(
+        call('key-1', {
+          lines: [{ b: 2, a: 1 }],
+          currency: 'XAF',
+          amount: '100.00',
+        }),
+        handler,
+      );
+      expect(replay.replayed).toBe(true);
+      expect(state.runs).toBe(1);
+    });
 
-    it.failing(
-      'still replays after the lease time has long passed',
-      async () => {
-        const { state, handler } = payment();
-        const first = await idempotency.execute(call('key-1'), handler);
-        clock.advance(LEASE_MS * 10);
-        const replay = await idempotency.execute(call('key-1'), handler);
-        expect(replay).toEqual({ response: first.response, replayed: true });
-        expect(state.runs).toBe(1);
-      },
-    );
+    it('still replays after the lease time has long passed', async () => {
+      const { state, handler } = payment();
+      const first = await idempotency.execute(call('key-1'), handler);
+      clock.advance(LEASE_MS * 10);
+      const replay = await idempotency.execute(call('key-1'), handler);
+      expect(replay).toEqual({ response: first.response, replayed: true });
+      expect(state.runs).toBe(1);
+    });
 
-    it.failing(
-      'stores only a hash of the request, never the request',
-      async () => {
-        await idempotency.execute(
-          call('key-1', { otp: '424242', phone: '677123456' }),
-          async () => ({ status: 204, body: null }),
-        );
-        const rows = await schema.admin.query(
-          `select * from ${schema.name}.idempotency_keys`,
-        );
-        expect(rows.rows).toHaveLength(1);
-        const stored = JSON.stringify(rows.rows);
-        expect(stored).not.toContain('424242');
-        expect(stored).not.toContain('677123456');
-      },
-    );
+    it('stores only a hash of the request, never the request', async () => {
+      await idempotency.execute(
+        call('key-1', { otp: '424242', phone: '677123456' }),
+        async () => ({ status: 204, body: null }),
+      );
+      const rows = await schema.admin.query(
+        `select * from ${schema.name}.idempotency_keys`,
+      );
+      expect(rows.rows).toHaveLength(1);
+      const stored = JSON.stringify(rows.rows);
+      expect(stored).not.toContain('424242');
+      expect(stored).not.toContain('677123456');
+    });
   });
 
   describe('a request still in flight', () => {
-    it.failing(
-      'answers 409 to a second request with the same key',
-      async () => {
-        const gate = deferred();
-        let runs = 0;
-        const first = idempotency.execute(
-          call('key-1'),
-          async (transaction) => {
-            runs += 1;
-            await writeEffect(transaction, 'first');
-            await gate.promise;
-            return { status: 201, body: { attempt: 'first' } };
-          },
-        );
-        // Let the first request claim the key before the second arrives.
-        await new Promise((resolve) => setTimeout(resolve, 150));
+    it('answers 409 to a second request with the same key', async () => {
+      const gate = deferred();
+      let runs = 0;
+      const first = idempotency.execute(call('key-1'), async (transaction) => {
+        runs += 1;
+        await writeEffect(transaction, 'first');
+        await gate.promise;
+        return { status: 201, body: { attempt: 'first' } };
+      });
+      // Let the first request claim the key before the second arrives.
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
-        const second = payment('second');
-        expect(
-          await failureOf(idempotency.execute(call('key-1'), second.handler)),
-        ).toEqual({ code: IDEMPOTENCY_ERRORS.IN_FLIGHT, status: 409 });
-        expect(second.state.runs).toBe(0);
+      const second = payment('second');
+      expect(
+        await failureOf(idempotency.execute(call('key-1'), second.handler)),
+      ).toEqual({ code: IDEMPOTENCY_ERRORS.IN_FLIGHT, status: 409 });
+      expect(second.state.runs).toBe(0);
 
-        gate.resolve();
-        expect((await first).response.body).toEqual({ attempt: 'first' });
+      gate.resolve();
+      expect((await first).response.body).toEqual({ attempt: 'first' });
 
-        const replay = await idempotency.execute(call('key-1'), second.handler);
-        expect(replay).toEqual({
-          response: { status: 201, body: { attempt: 'first' } },
-          replayed: true,
-        });
-        expect(runs).toBe(1);
-        expect(await effects()).toEqual(['first']);
-      },
-    );
+      const replay = await idempotency.execute(call('key-1'), second.handler);
+      expect(replay).toEqual({
+        response: { status: 201, body: { attempt: 'first' } },
+        replayed: true,
+      });
+      expect(runs).toBe(1);
+      expect(await effects()).toEqual(['first']);
+    });
 
-    it.failing(
-      'lets exactly one of two simultaneous first requests run',
-      async () => {
-        let runs = 0;
-        const handler = async (transaction: Transaction) => {
-          runs += 1;
-          await writeEffect(transaction, 'payment');
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          return { status: 201, body: { ok: true } };
-        };
-        const outcomes = await Promise.allSettled([
-          idempotency.execute(call('key-1'), handler),
-          idempotency.execute(call('key-1'), handler),
-          idempotency.execute(call('key-1'), handler),
-        ]);
+    it('lets exactly one of two simultaneous first requests run', async () => {
+      let runs = 0;
+      const handler = async (transaction: Transaction) => {
+        runs += 1;
+        await writeEffect(transaction, 'payment');
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return { status: 201, body: { ok: true } };
+      };
+      const outcomes = await Promise.allSettled([
+        idempotency.execute(call('key-1'), handler),
+        idempotency.execute(call('key-1'), handler),
+        idempotency.execute(call('key-1'), handler),
+      ]);
 
-        const succeeded = outcomes.filter(
-          (outcome) => outcome.status === 'fulfilled',
-        );
-        const rejected = outcomes.filter(
-          (outcome) => outcome.status === 'rejected',
-        );
-        expect(succeeded).toHaveLength(1);
-        for (const outcome of rejected) {
-          expect((outcome as PromiseRejectedResult).reason).toMatchObject({
-            code: IDEMPOTENCY_ERRORS.IN_FLIGHT,
-            status: 409,
-          });
-        }
-        expect(runs).toBe(1);
-        expect(await effects()).toEqual(['payment']);
-      },
-    );
-
-    it.failing(
-      'lets a new attempt take over once the lease has expired, and stops the old one from committing',
-      async () => {
-        const gate = deferred();
-        const slow = idempotency.execute(call('key-1'), async (transaction) => {
-          await writeEffect(transaction, 'slow attempt');
-          await gate.promise;
-          return { status: 201, body: { attempt: 'slow' } };
-        });
-        await new Promise((resolve) => setTimeout(resolve, 150));
-
-        // Within the lease the key is still taken.
-        clock.advance(LEASE_MS - 1);
-        const early = payment('early');
-        expect(
-          await failureOf(idempotency.execute(call('key-1'), early.handler)),
-        ).toMatchObject({ code: IDEMPOTENCY_ERRORS.IN_FLIGHT });
-
-        // After it, a retry may run: the first attempt is presumed dead.
-        clock.advance(2);
-        const takeover = await idempotency.execute(
-          call('key-1'),
-          async (transaction) => {
-            await writeEffect(transaction, 'takeover');
-            return { status: 201, body: { attempt: 'takeover' } };
-          },
-        );
-        expect(takeover).toEqual({
-          response: { status: 201, body: { attempt: 'takeover' } },
-          replayed: false,
-        });
-
-        // The slow attempt was not dead after all. It must not commit.
-        gate.resolve();
-        expect(await failureOf(slow)).toEqual({
-          code: IDEMPOTENCY_ERRORS.LEASE_LOST,
+      const succeeded = outcomes.filter(
+        (outcome) => outcome.status === 'fulfilled',
+      );
+      const rejected = outcomes.filter(
+        (outcome) => outcome.status === 'rejected',
+      );
+      expect(succeeded).toHaveLength(1);
+      for (const outcome of rejected) {
+        expect((outcome as PromiseRejectedResult).reason).toMatchObject({
+          code: IDEMPOTENCY_ERRORS.IN_FLIGHT,
           status: 409,
         });
-        expect(await effects()).toEqual(['takeover']);
+      }
+      expect(runs).toBe(1);
+      expect(await effects()).toEqual(['payment']);
+    });
 
-        const replay = await idempotency.execute(call('key-1'), early.handler);
-        expect(replay.response.body).toEqual({ attempt: 'takeover' });
-        expect(early.state.runs).toBe(0);
-      },
-    );
+    it('lets a new attempt take over once the lease has expired, and stops the old one from committing', async () => {
+      const gate = deferred();
+      const slow = idempotency.execute(call('key-1'), async (transaction) => {
+        await writeEffect(transaction, 'slow attempt');
+        await gate.promise;
+        return { status: 201, body: { attempt: 'slow' } };
+      });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Within the lease the key is still taken.
+      clock.advance(LEASE_MS - 1);
+      const early = payment('early');
+      expect(
+        await failureOf(idempotency.execute(call('key-1'), early.handler)),
+      ).toMatchObject({ code: IDEMPOTENCY_ERRORS.IN_FLIGHT });
+
+      // After it, a retry may run: the first attempt is presumed dead.
+      clock.advance(2);
+      const takeover = await idempotency.execute(
+        call('key-1'),
+        async (transaction) => {
+          await writeEffect(transaction, 'takeover');
+          return { status: 201, body: { attempt: 'takeover' } };
+        },
+      );
+      expect(takeover).toEqual({
+        response: { status: 201, body: { attempt: 'takeover' } },
+        replayed: false,
+      });
+
+      // The slow attempt was not dead after all. It must not commit.
+      gate.resolve();
+      expect(await failureOf(slow)).toEqual({
+        code: IDEMPOTENCY_ERRORS.LEASE_LOST,
+        status: 409,
+      });
+      expect(await effects()).toEqual(['takeover']);
+
+      const replay = await idempotency.execute(call('key-1'), early.handler);
+      expect(replay.response.body).toEqual({ attempt: 'takeover' });
+      expect(early.state.runs).toBe(0);
+    });
   });
 
   describe('a key reused for something else', () => {
-    it.failing(
-      'answers 422 when the body differs, and keeps the first result',
-      async () => {
-        const { handler } = payment();
-        const first = await idempotency.execute(
-          call('key-1', { amount: '100.00', currency: 'XAF' }),
-          handler,
-        );
+    it('answers 422 when the body differs, and keeps the first result', async () => {
+      const { handler } = payment();
+      const first = await idempotency.execute(
+        call('key-1', { amount: '100.00', currency: 'XAF' }),
+        handler,
+      );
 
-        const other = payment('other');
-        expect(
-          await failureOf(
-            idempotency.execute(
-              call('key-1', { amount: '999.00', currency: 'XAF' }),
-              other.handler,
-            ),
+      const other = payment('other');
+      expect(
+        await failureOf(
+          idempotency.execute(
+            call('key-1', { amount: '999.00', currency: 'XAF' }),
+            other.handler,
           ),
-        ).toEqual({ code: IDEMPOTENCY_ERRORS.KEY_REUSED, status: 422 });
-        expect(other.state.runs).toBe(0);
-        expect(await effects()).toEqual(['payment']);
+        ),
+      ).toEqual({ code: IDEMPOTENCY_ERRORS.KEY_REUSED, status: 422 });
+      expect(other.state.runs).toBe(0);
+      expect(await effects()).toEqual(['payment']);
 
-        const replay = await idempotency.execute(
-          call('key-1', { amount: '100.00', currency: 'XAF' }),
-          other.handler,
-        );
-        expect(replay).toEqual({ response: first.response, replayed: true });
-      },
-    );
+      const replay = await idempotency.execute(
+        call('key-1', { amount: '100.00', currency: 'XAF' }),
+        other.handler,
+      );
+      expect(replay).toEqual({ response: first.response, replayed: true });
+    });
 
-    it.failing('answers 422 when the operation differs', async () => {
+    it('answers 422 when the operation differs', async () => {
       await idempotency.execute(call('key-1'), payment().handler);
       const refund = payment('refund');
       expect(
@@ -452,83 +417,74 @@ describeWithPostgres('idempotency', () => {
       expect(refund.state.runs).toBe(0);
     });
 
-    it.failing(
-      'answers 422, not 409, when a different body arrives while the first is in flight',
-      async () => {
-        const gate = deferred();
-        const first = idempotency.execute(call('key-1'), async () => {
-          await gate.promise;
-          return { status: 201, body: {} };
-        });
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        expect(
-          await failureOf(
-            idempotency.execute(
-              call('key-1', { amount: '5.00' }),
-              payment().handler,
-            ),
+    it('answers 422, not 409, when a different body arrives while the first is in flight', async () => {
+      const gate = deferred();
+      const first = idempotency.execute(call('key-1'), async () => {
+        await gate.promise;
+        return { status: 201, body: {} };
+      });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(
+        await failureOf(
+          idempotency.execute(
+            call('key-1', { amount: '5.00' }),
+            payment().handler,
           ),
-        ).toEqual({ code: IDEMPOTENCY_ERRORS.KEY_REUSED, status: 422 });
-        gate.resolve();
-        await first;
-      },
-    );
+        ),
+      ).toEqual({ code: IDEMPOTENCY_ERRORS.KEY_REUSED, status: 422 });
+      gate.resolve();
+      await first;
+    });
   });
 
   describe('rollback re-executes', () => {
-    it.failing(
-      'stores nothing when the handler throws, so the same key can retry',
-      async () => {
-        const failure = new Error('provider unreachable');
-        let runs = 0;
-        const flaky = async (transaction: Transaction) => {
-          runs += 1;
-          await writeEffect(transaction, `attempt ${runs}`);
-          if (runs === 1) {
-            throw failure;
-          }
-          return { status: 201, body: { attempt: runs } };
-        };
+    it('stores nothing when the handler throws, so the same key can retry', async () => {
+      const failure = new Error('provider unreachable');
+      let runs = 0;
+      const flaky = async (transaction: Transaction) => {
+        runs += 1;
+        await writeEffect(transaction, `attempt ${runs}`);
+        if (runs === 1) {
+          throw failure;
+        }
+        return { status: 201, body: { attempt: runs } };
+      };
 
-        // The caller sees the original error, not an idempotency error.
-        await expect(idempotency.execute(call('key-1'), flaky)).rejects.toBe(
-          failure,
-        );
-        // The business change of the failed attempt is gone with it.
-        expect(await effects()).toEqual([]);
+      // The caller sees the original error, not an idempotency error.
+      await expect(idempotency.execute(call('key-1'), flaky)).rejects.toBe(
+        failure,
+      );
+      // The business change of the failed attempt is gone with it.
+      expect(await effects()).toEqual([]);
 
-        // The retry is a real execution, not a replay of the failure and not a 409.
-        const retry = await idempotency.execute(call('key-1'), flaky);
-        expect(retry).toEqual({
-          response: { status: 201, body: { attempt: 2 } },
-          replayed: false,
-        });
-        expect(await effects()).toEqual(['attempt 2']);
+      // The retry is a real execution, not a replay of the failure and not a 409.
+      const retry = await idempotency.execute(call('key-1'), flaky);
+      expect(retry).toEqual({
+        response: { status: 201, body: { attempt: 2 } },
+        replayed: false,
+      });
+      expect(await effects()).toEqual(['attempt 2']);
 
-        const replay = await idempotency.execute(call('key-1'), flaky);
-        expect(replay).toEqual({ response: retry.response, replayed: true });
-        expect(runs).toBe(2);
-      },
-    );
+      const replay = await idempotency.execute(call('key-1'), flaky);
+      expect(replay).toEqual({ response: retry.response, replayed: true });
+      expect(runs).toBe(2);
+    });
 
-    it.failing(
-      'can retry with a corrected body after a failed attempt',
-      async () => {
-        await expect(
-          idempotency.execute(call('key-1', { amount: '-1' }), async () => {
-            throw new Error('amount must be positive');
-          }),
-        ).rejects.toThrow('amount must be positive');
+    it('can retry with a corrected body after a failed attempt', async () => {
+      await expect(
+        idempotency.execute(call('key-1', { amount: '-1' }), async () => {
+          throw new Error('amount must be positive');
+        }),
+      ).rejects.toThrow('amount must be positive');
 
-        const { state, handler } = payment();
-        const retry = await idempotency.execute(
-          call('key-1', { amount: '100.00' }),
-          handler,
-        );
-        expect(retry.replayed).toBe(false);
-        expect(state.runs).toBe(1);
-      },
-    );
+      const { state, handler } = payment();
+      const retry = await idempotency.execute(
+        call('key-1', { amount: '100.00' }),
+        handler,
+      );
+      expect(retry.replayed).toBe(false);
+      expect(state.runs).toBe(1);
+    });
   });
 
   describe('crash after commit rebuilds', () => {
@@ -552,42 +508,39 @@ describeWithPostgres('idempotency', () => {
       }),
     });
 
-    it.failing(
-      'returns the committed result to the retry instead of running again',
-      async () => {
-        const dying = createIdempotency({
-          database: dyingAfterCommit(database),
-          table: schema.tables.keys,
-          clock,
-          leaseMs: LEASE_MS,
-        });
-        const { state, handler } = payment();
+    it('returns the committed result to the retry instead of running again', async () => {
+      const dying = createIdempotency({
+        database: dyingAfterCommit(database),
+        table: schema.tables.keys,
+        clock,
+        leaseMs: LEASE_MS,
+      });
+      const { state, handler } = payment();
 
-        // The first caller never gets an answer, but the payment is committed.
-        await expect(dying.execute(call('key-1'), handler)).rejects.toThrow(
-          'process died after commit',
-        );
-        expect(await effects()).toEqual(['payment']);
+      // The first caller never gets an answer, but the payment is committed.
+      await expect(dying.execute(call('key-1'), handler)).rejects.toThrow(
+        'process died after commit',
+      );
+      expect(await effects()).toEqual(['payment']);
 
-        // The retry, on a healthy process, must not pay a second time. It gets
-        // the answer the first caller should have had, at once and without
-        // waiting for a lease to expire.
-        const retry = await idempotency.execute(call('key-1'), handler);
-        expect(retry).toEqual({
-          response: {
-            status: 201,
-            body: { paymentId: 'pay-1', note: 'payment' },
-          },
-          replayed: true,
-        });
-        expect(state.runs).toBe(1);
-        expect(await effects()).toEqual(['payment']);
-      },
-    );
+      // The retry, on a healthy process, must not pay a second time. It gets
+      // the answer the first caller should have had, at once and without
+      // waiting for a lease to expire.
+      const retry = await idempotency.execute(call('key-1'), handler);
+      expect(retry).toEqual({
+        response: {
+          status: 201,
+          body: { paymentId: 'pay-1', note: 'payment' },
+        },
+        replayed: true,
+      });
+      expect(state.runs).toBe(1);
+      expect(await effects()).toEqual(['payment']);
+    });
   });
 
   describe('scope', () => {
-    it.failing('keeps the same key apart for two businesses', async () => {
+    it('keeps the same key apart for two businesses', async () => {
       const a = payment('for A');
       const b = payment('for B');
       const resultA = await runWithTenantContext(BUSINESS_A, () =>
@@ -606,47 +559,38 @@ describeWithPostgres('idempotency', () => {
       expect(replayA.response.body).toMatchObject({ note: 'for A' });
     });
 
-    it.failing(
-      'keeps a signed-in key apart from the same key sent before sign-in',
-      async () => {
-        const publicCall = payment('public');
-        const tenantCall = payment('tenant');
-        await idempotency.execute(call('key-1'), publicCall.handler);
-        const result = await runWithTenantContext(BUSINESS_A, () =>
-          idempotency.execute(call('key-1'), tenantCall.handler),
-        );
-        expect(result.replayed).toBe(false);
-        expect(tenantCall.state.runs).toBe(1);
-      },
-    );
+    it('keeps a signed-in key apart from the same key sent before sign-in', async () => {
+      const publicCall = payment('public');
+      const tenantCall = payment('tenant');
+      await idempotency.execute(call('key-1'), publicCall.handler);
+      const result = await runWithTenantContext(BUSINESS_A, () =>
+        idempotency.execute(call('key-1'), tenantCall.handler),
+      );
+      expect(result.replayed).toBe(false);
+      expect(tenantCall.state.runs).toBe(1);
+    });
 
-    it.failing(
-      'runs the handler in a tenant transaction when a tenant context is active',
-      async () => {
-        let inside: { open: boolean; sameTransaction: boolean } | undefined;
-        await runWithTenantContext(BUSINESS_A, () =>
-          idempotency.execute(call('key-1'), async (transaction) => {
-            inside = {
-              open: isInTransaction(),
-              sameTransaction: requireTenantTransaction() === transaction,
-            };
-            return { status: 204, body: null };
-          }),
-        );
-        expect(inside).toEqual({ open: true, sameTransaction: true });
-      },
-    );
-
-    it.failing(
-      'runs the handler in a system transaction when there is no tenant context',
-      async () => {
-        let sameTransaction = false;
-        await idempotency.execute(call('key-1'), async (transaction) => {
-          sameTransaction = requireSystemTransaction() === transaction;
+    it('runs the handler in a tenant transaction when a tenant context is active', async () => {
+      let inside: { open: boolean; sameTransaction: boolean } | undefined;
+      await runWithTenantContext(BUSINESS_A, () =>
+        idempotency.execute(call('key-1'), async (transaction) => {
+          inside = {
+            open: isInTransaction(),
+            sameTransaction: requireTenantTransaction() === transaction,
+          };
           return { status: 204, body: null };
-        });
-        expect(sameTransaction).toBe(true);
-      },
-    );
+        }),
+      );
+      expect(inside).toEqual({ open: true, sameTransaction: true });
+    });
+
+    it('runs the handler in a system transaction when there is no tenant context', async () => {
+      let sameTransaction = false;
+      await idempotency.execute(call('key-1'), async (transaction) => {
+        sameTransaction = requireSystemTransaction() === transaction;
+        return { status: 204, body: null };
+      });
+      expect(sameTransaction).toBe(true);
+    });
   });
 });
