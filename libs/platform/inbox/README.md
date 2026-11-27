@@ -2,9 +2,8 @@
 
 Makes a consumer apply each event once, however many times it is delivered.
 
-> **Status: contract and failure-path tests only.** This is a money path (plan row 1.4 ⚑), so its
-> tests were written first. `createInbox()` throws until the implementation lands. The tests in
-> `inbox.spec.ts` are marked `it.failing` and must not be changed to make code pass.
+This is a money path (plan row 1.4 ⚑). The tests in `inbox.spec.ts` were written and reviewed before
+the implementation and are the contract: they must not be changed to make code pass. See ADR 0005.
 
 Changes here need Henson's line-by-line review.
 

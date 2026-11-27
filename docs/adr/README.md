@@ -9,6 +9,7 @@ these before proposing a change to how the repo is structured.
 | [0002](./0002-hermes-compatible-test-target.md) | What "Hermes-compatible test target" means                         | Accepted |
 | [0003](./0003-platform-kernel-libraries.md)     | Platform kernel libraries, and what NestJS 12 being ESM-only means | Accepted |
 | [0004](./0004-tenant-isolation-in-postgres.md)  | How tenant isolation is enforced in PostgreSQL                     | Accepted |
+| [0005](./0005-idempotency-outbox-inbox.md)      | Idempotency, outbox and inbox                                      | Accepted |
 
 ## Adding one
 

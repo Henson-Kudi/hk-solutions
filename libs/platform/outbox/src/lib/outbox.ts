@@ -1,8 +1,17 @@
-import type { Database, Transaction } from '@hk/platform/db';
+import {
+  getTenantContext,
+  type Database,
+  type Transaction,
+} from '@hk/platform/db';
 import type { Logger } from '@hk/platform/logger';
+import { createQueue, type JobQueue } from '@hk/platform/queue';
 import type { RedisClient } from '@hk/platform/redis';
-import type { Clock } from '@hk/platform/universal';
-import { sql } from 'drizzle-orm';
+import {
+  createUuidV7Generator,
+  systemClock,
+  type Clock,
+} from '@hk/platform/universal';
+import { and, asc, eq, isNull, lte, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -14,11 +23,9 @@ import {
 } from 'drizzle-orm/pg-core';
 
 /**
- * CONTRACT ONLY. This file fixes the public shape of platform/outbox so that
- * its failure-path tests can be written and reviewed first (plan row 1.4, a
- * money-path row). Nothing below is implemented yet: every call throws. The
- * tests in outbox.spec.ts are marked `it.failing` until the implementation
- * lands, and they are not to be changed to make it pass.
+ * A money path (plan row 1.4). The tests in outbox.spec.ts were written and
+ * reviewed before this implementation, and are not to be changed to make code
+ * pass. Changes here need Henson's line-by-line review.
  */
 
 /**
@@ -160,25 +167,192 @@ export interface QueuePublisher {
   close(): Promise<void>;
 }
 
-const notImplemented = (): never => {
-  throw new Error('platform/outbox is not implemented yet (plan row 1.4).');
+const nextId = createUuidV7Generator();
+
+/** A value as it is after a round trip through JSON, which is how it is stored and published. */
+const asJson = <Value>(value: Value): Value =>
+  JSON.parse(JSON.stringify(value)) as Value;
+
+export const createOutbox = (options: OutboxOptions): Outbox => {
+  const { table } = options;
+  const clock = options.clock ?? systemClock;
+
+  return {
+    append: async (transaction, event) => {
+      const tenant = getTenantContext();
+      const occurredAt = clock.now();
+      const stored = {
+        id: event.id ?? nextId(),
+        topic: event.topic,
+        payload: asJson(event.payload),
+        tenantId: tenant?.tenantId ?? null,
+        businessId: tenant?.businessId ?? null,
+        headers: { ...event.headers },
+      };
+      await transaction.insert(table).values({
+        ...stored,
+        occurredAt,
+        // Due at once: the relay picks it up on its next pass after commit.
+        nextAttemptAt: occurredAt,
+      });
+      return { ...stored, occurredAt: occurredAt.toISOString() };
+    },
+  };
 };
 
-export const createOutbox = (_options: OutboxOptions): Outbox => ({
-  append: notImplemented,
-});
+export const createOutboxRelay = (options: OutboxRelayOptions): OutboxRelay => {
+  const { database, table, publish, logger } = options;
+  const clock = options.clock ?? systemClock;
+  const batchSize = options.batchSize ?? 100;
+  const retryDelayMs = options.retryDelayMs ?? 1_000;
+  const maxRetryDelayMs = options.maxRetryDelayMs ?? 300_000;
 
-export const createOutboxRelay = (
-  _options: OutboxRelayOptions,
-): OutboxRelay => ({
-  drain: notImplemented,
-  start: notImplemented,
-  stop: notImplemented,
-});
+  /**
+   * One pass, in one transaction.
+   *
+   * The rows are selected FOR UPDATE SKIP LOCKED. The lock is what stops a
+   * second relay from taking the same events: it skips them and takes the
+   * next ones. The lock is held until this pass commits, so publishing
+   * happens inside the transaction. That is a deliberate exception to "no
+   * remote calls in a transaction": the call is one enqueue per event, the
+   * batch is bounded, and without the lock two relays would both publish.
+   *
+   * The transaction is opened on the Drizzle handle directly and not through
+   * withSystemTransaction, so that `publish` does not run inside this
+   * transaction's context and cannot join it by accident.
+   */
+  const drain = async (): Promise<RelayPass> => {
+    const pass: RelayPass = { published: 0, failed: 0 };
+
+    await database.drizzle.transaction(async (transaction) => {
+      const now = clock.now();
+      const due = await transaction
+        .select()
+        .from(table)
+        .where(and(isNull(table.publishedAt), lte(table.nextAttemptAt, now)))
+        .orderBy(asc(table.occurredAt), asc(table.id))
+        .limit(batchSize)
+        .for('update', { skipLocked: true });
+
+      for (const row of due) {
+        const event: OutboxEvent = {
+          id: row.id,
+          topic: row.topic,
+          payload: row.payload,
+          tenantId: row.tenantId,
+          businessId: row.businessId,
+          headers: row.headers as Record<string, string>,
+          occurredAt: row.occurredAt.toISOString(),
+        };
+        try {
+          await publish(event);
+        } catch (err) {
+          // Stay pending, and wait longer after each failure so a broken
+          // transport is not hammered: retryDelay, then double, up to the cap.
+          const delay = Math.min(
+            retryDelayMs * 2 ** row.attempts,
+            maxRetryDelayMs,
+          );
+          await transaction
+            .update(table)
+            .set({
+              attempts: row.attempts + 1,
+              nextAttemptAt: new Date(now.getTime() + delay),
+            })
+            .where(eq(table.id, row.id));
+          pass.failed += 1;
+          logger.warn('outbox publish failed', {
+            eventId: row.id,
+            topic: row.topic,
+            attempts: row.attempts + 1,
+            err,
+          });
+          continue;
+        }
+        // If the process stops between the publish above and the commit of
+        // this update, the event is published again on the next pass, with
+        // the same id. Consumers deduplicate on it (platform/inbox).
+        await transaction
+          .update(table)
+          .set({ attempts: row.attempts + 1, publishedAt: now })
+          .where(eq(table.id, row.id));
+        pass.published += 1;
+      }
+    });
+    return pass;
+  };
+
+  let running = false;
+  let loop: Promise<void> | undefined;
+  let wake: (() => void) | undefined;
+
+  const pause = (milliseconds: number): Promise<void> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(resolve, milliseconds);
+      wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+
+  return {
+    drain,
+    start: (idleMs = 1_000) => {
+      if (running) {
+        return;
+      }
+      running = true;
+      loop = (async () => {
+        while (running) {
+          let idle = true;
+          try {
+            const pass = await drain();
+            idle = pass.published + pass.failed === 0;
+          } catch (err) {
+            // For example the database is away. Keep the relay alive.
+            logger.error('outbox relay pass failed', { err });
+          }
+          if (running && idle) {
+            await pause(idleMs);
+          }
+        }
+      })();
+    },
+    stop: async () => {
+      running = false;
+      wake?.();
+      await loop;
+      loop = undefined;
+    },
+  };
+};
 
 export const createQueuePublisher = (
-  _options: QueuePublisherOptions,
-): QueuePublisher => ({
-  publish: notImplemented,
-  close: notImplemented,
-});
+  options: QueuePublisherOptions,
+): QueuePublisher => {
+  const queues = new Map<string, JobQueue<OutboxEvent>>();
+
+  const queueFor = (topic: string): JobQueue<OutboxEvent> => {
+    let queue = queues.get(topic);
+    if (!queue) {
+      queue = createQueue<OutboxEvent>({
+        name: topic,
+        connection: options.connection,
+      });
+      queues.set(topic, queue);
+    }
+    return queue;
+  };
+
+  return {
+    publish: async (event) => {
+      await queueFor(event.topic).enqueue(event.topic, event, {
+        jobId: event.id,
+      });
+    },
+    close: async () => {
+      await Promise.all([...queues.values()].map((queue) => queue.close()));
+      queues.clear();
+    },
+  };
+};

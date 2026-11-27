@@ -9,6 +9,7 @@
     "tslib": "^2.3.0",
     "@hk/platform/db": "0.0.1",
     "@hk/platform/universal": "0.0.1",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "@hk/platform/errors": "0.0.1"
   }
 }
