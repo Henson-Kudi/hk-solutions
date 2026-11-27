@@ -43,7 +43,7 @@
     "@nx/workspace": "24.1.0",
     "@swc/helpers": "~0.5.18",
     "@types/jest": "~30.0.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.6",
     "dependency-cruiser": "^18.9.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.0.0",
