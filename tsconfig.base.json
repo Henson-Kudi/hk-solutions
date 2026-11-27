@@ -18,7 +18,17 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "paths": {
-      "@hk/platform/universal": ["./libs/platform/universal/src/index.ts"]
+      "@hk/platform/universal": ["./libs/platform/universal/src/index.ts"],
+      "@hk/platform/config": ["./libs/platform/config/src/index.ts"],
+      "@hk/platform/logger": ["./libs/platform/logger/src/index.ts"],
+      "@hk/platform/errors": ["./libs/platform/errors/src/index.ts"],
+      "@hk/platform/observability": [
+        "./libs/platform/observability/src/index.ts"
+      ],
+      "@hk/platform/redis": ["./libs/platform/redis/src/index.ts"],
+      "@hk/platform/queue": ["./libs/platform/queue/src/index.ts"],
+      "@hk/platform/http": ["./libs/platform/http/src/index.ts"],
+      "@hk/platform/nest": ["./libs/platform/nest/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

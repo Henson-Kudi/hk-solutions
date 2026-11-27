@@ -1,0 +1,19 @@
+{
+  "name": "platform-errors",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/errors/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/errors",
+        "main": "libs/platform/errors/src/index.ts",
+        "tsConfig": "libs/platform/errors/tsconfig.lib.json",
+        "assets": ["libs/platform/errors/*.md"]
+      }
+    }
+  }
+}

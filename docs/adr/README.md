@@ -3,10 +3,11 @@
 An ADR records one decision that shapes the code: what was decided, why, and what it costs. Read
 these before proposing a change to how the repo is structured.
 
-| ADR                                             | Title                                      | Status   |
-| ----------------------------------------------- | ------------------------------------------ | -------- |
-| [0001](./0001-architecture-baseline.md)         | Architecture baseline                      | Accepted |
-| [0002](./0002-hermes-compatible-test-target.md) | What "Hermes-compatible test target" means | Accepted |
+| ADR                                             | Title                                                              | Status   |
+| ----------------------------------------------- | ------------------------------------------------------------------ | -------- |
+| [0001](./0001-architecture-baseline.md)         | Architecture baseline                                              | Accepted |
+| [0002](./0002-hermes-compatible-test-target.md) | What "Hermes-compatible test target" means                         | Accepted |
+| [0003](./0003-platform-kernel-libraries.md)     | Platform kernel libraries, and what NestJS 12 being ESM-only means | Accepted |
 
 ## Adding one
 
