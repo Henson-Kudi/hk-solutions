@@ -9,6 +9,8 @@
     "tslib": "^2.3.0",
     "drizzle-orm": "^0.45.4",
     "drizzle-kit": "^0.31.11",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "@testcontainers/postgresql": "^12.2.2",
+    "@testcontainers/redis": "^12.2.2"
   }
 }

@@ -27,6 +27,9 @@
           "env": "HK_TEST_REDIS_URL"
         },
         {
+          "env": "HK_TEST_CONTAINERS"
+        },
+        {
           "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
         }
       ]

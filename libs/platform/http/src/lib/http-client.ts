@@ -1,5 +1,6 @@
 import { isProblemDetails, type ProblemDetails } from '@hk/platform/errors';
 import type { Logger } from '@hk/platform/logger';
+import { defaultRedactor, type Redactor } from '@hk/platform/redaction';
 
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -18,6 +19,12 @@ export interface HttpClientOptions {
    */
   headers?: () => Record<string, string> | Promise<Record<string, string>>;
   logger?: Logger;
+  /**
+   * Applied to the problem details of an error response before they are
+   * attached to the HttpClientError, since errors get logged. Defaults to the
+   * redactor of @hk/platform/redaction.
+   */
+  redactor?: Redactor;
   /** For tests. */
   fetch?: typeof fetch;
   /** For tests. */
@@ -299,7 +306,9 @@ export const createHttpClient = (options: HttpClientOptions): HttpClient => {
           code: 'HTTP_RESPONSE',
           status: response.status,
           attempts: attempt,
-          ...(isProblemDetails(data) ? { problem: data } : {}),
+          ...(isProblemDetails(data)
+            ? { problem: (options.redactor ?? defaultRedactor).redact(data) }
+            : {}),
         });
       } catch (cause) {
         if (cause instanceof HttpClientError) {

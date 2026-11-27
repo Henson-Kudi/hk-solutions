@@ -13,10 +13,11 @@ logger.error('payment call failed', { err }); // an Error under any key is seria
 
 - **The message is a constant string.** Values go in the fields object. Lint rejects a template
   literal or concatenation as the message.
-- **Never log** tokens, OTPs, ID numbers, phone numbers or request bodies. As a safety net the
-  values of the keys in `SENSITIVE_KEYS` (`password`, `token`, `otp`, `authorization`, …) are
-  replaced with `[REDACTED]` up to three levels deep. Redaction of values by pattern arrives with
-  `platform/redaction`, through the `redact` option.
+- **Never log** tokens, OTPs, ID numbers, phone numbers or request bodies. As a safety net every
+  line goes through `@hk/platform/redaction`, which replaces values by key (`password`, `otp`,
+  `phone`, …) and by shape (a token, a password in a URL, an international phone number, a card
+  number) wherever they appear, including inside an error message. Pass
+  `redact: createRedactor({ keys, patterns }).redact` to add your own, such as a national ID format.
 - **Log context.** `runWithLogContext({ requestId }, fn)` puts those fields on every line written
   inside `fn`, across awaits. The request middleware and the queue worker set it for you.
   `addLogContext` adds fields learned later, such as the tenant.

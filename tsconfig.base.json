@@ -36,7 +36,9 @@
       "@hk/platform/inbox": ["./libs/platform/inbox/src/index.ts"],
       "@hk/platform/internal-auth": [
         "./libs/platform/internal-auth/src/index.ts"
-      ]
+      ],
+      "@hk/platform/redaction": ["./libs/platform/redaction/src/index.ts"],
+      "@hk/platform/test-kit": ["./libs/platform/test-kit/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

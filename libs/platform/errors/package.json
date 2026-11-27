@@ -7,6 +7,7 @@
   "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0",
-    "@hk/platform/universal": "0.0.1"
+    "@hk/platform/universal": "0.0.1",
+    "@hk/platform/redaction": "0.0.1"
   }
 }

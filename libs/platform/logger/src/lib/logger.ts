@@ -1,3 +1,4 @@
+import { defaultRedactor } from '@hk/platform/redaction';
 import pino, { type DestinationStream, type Logger as PinoLogger } from 'pino';
 import { getLogContext, type LogFields } from './log-context';
 
@@ -34,6 +35,9 @@ export interface Logger {
   isLevelEnabled(level: LogLevel): boolean;
 }
 
+/** Returns a redacted copy of a line's fields. */
+export type Redact = (fields: LogFields) => LogFields;
+
 export interface LoggerOptions {
   /** The service name, on every line. */
   service: string;
@@ -43,11 +47,14 @@ export interface LoggerOptions {
   /** Where lines are written. Defaults to stdout. */
   destination?: DestinationStream;
   /**
-   * Called for the fields of every line before it is written.
-   * platform/redaction plugs in here. It runs in addition to the built-in
-   * key-based redaction below, not instead of it.
+   * Called for the fields of every line before it is written. Defaults to
+   * the redactor of @hk/platform/redaction, which replaces values by key and
+   * by shape. Pass your own to add keys or patterns (createRedactor), or
+   * false to switch it off in a test that needs to see raw fields.
+   *
+   * It runs in addition to the built-in key list below, not instead of it.
    */
-  redact?: (fields: LogFields) => LogFields;
+  redact?: Redact | false;
   /** Fields added to every line. Defaults to the current log context. */
   context?: () => LogFields | undefined;
 }
@@ -117,7 +124,7 @@ export const serializeError = (error: Error, depth = 0): SerializedError => {
 
 const prepare = (
   fields: LogFields | undefined,
-  redact: LoggerOptions['redact'],
+  redact: Redact | undefined,
 ): LogFields => {
   if (!fields) {
     return {};
@@ -129,10 +136,7 @@ const prepare = (
   return redact ? redact(prepared) : prepared;
 };
 
-const wrap = (
-  instance: PinoLogger,
-  redact: LoggerOptions['redact'],
-): Logger => {
+const wrap = (instance: PinoLogger, redact: Redact | undefined): Logger => {
   const write =
     (level: Exclude<LogLevel, 'silent'>) =>
     (message: string, fields?: LogFields): void => {
@@ -160,6 +164,10 @@ const wrap = (
  */
 export const createLogger = (options: LoggerOptions): Logger => {
   const context = options.context ?? getLogContext;
+  const redact: Redact | undefined =
+    options.redact === false
+      ? undefined
+      : (options.redact ?? ((fields) => defaultRedactor.redact(fields)));
   const instance = pino(
     {
       level: options.level ?? 'info',
@@ -178,10 +186,10 @@ export const createLogger = (options: LoggerOptions): Logger => {
       // Errors are already plain data by the time pino sees them (see
       // prepare), so pino's own serializer for the `err` key is switched off.
       serializers: { err: (value: unknown) => value },
-      mixin: () => prepare(context(), options.redact),
+      mixin: () => prepare(context(), redact),
       redact: { paths: redactPaths, censor: REDACTED },
     },
     options.destination ?? pino.destination({ sync: false }),
   );
-  return wrap(instance, options.redact);
+  return wrap(instance, redact);
 };
