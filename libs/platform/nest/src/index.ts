@@ -1,3 +1,4 @@
+export * from './lib/idempotent';
 export * from './lib/logger.module';
 export * from './lib/observability.module';
 export * from './lib/problem-details.filter';
