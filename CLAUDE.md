@@ -40,6 +40,7 @@ Decisions and their reasons: docs/adr/ (start with 0001-architecture-baseline.md
 - nx run migrator:serve -- --services core,sales                run migrations
 - nx g @hk/tools:product <name>                                  new product
 - nx run-many -t test --projects=tag:runtime:universal --configuration=hermes   universal-runtime tests
+- pnpm test:hermes                                              the line above plus a compile with the real Hermes compiler (docs/adr/0002)
 - nx run e2e:e2e
 
 ## Review

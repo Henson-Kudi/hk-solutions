@@ -3,9 +3,10 @@
 An ADR records one decision that shapes the code: what was decided, why, and what it costs. Read
 these before proposing a change to how the repo is structured.
 
-| ADR                                     | Title                 | Status   |
-| --------------------------------------- | --------------------- | -------- |
-| [0001](./0001-architecture-baseline.md) | Architecture baseline | Accepted |
+| ADR                                             | Title                                      | Status   |
+| ----------------------------------------------- | ------------------------------------------ | -------- |
+| [0001](./0001-architecture-baseline.md)         | Architecture baseline                      | Accepted |
+| [0002](./0002-hermes-compatible-test-target.md) | What "Hermes-compatible test target" means | Accepted |
 
 ## Adding one
 

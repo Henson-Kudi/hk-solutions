@@ -209,6 +209,34 @@ const VIOLATIONS = [
     depcruise: null,
   },
   {
+    name: 'domain uses the Node-only global Buffer',
+    file: 'libs/products/zzfix-a/domain/src/lib/bad-buffer.ts',
+    content: `export const badBuffer = Buffer.from('x');\n`,
+    eslint: 'no-restricted-globals',
+    depcruise: null,
+  },
+  {
+    name: 'application reads process.env',
+    file: 'libs/products/zzfix-a/application/src/lib/bad-process.ts',
+    content: `export const badProcess = process.env['HOME'];\n`,
+    eslint: 'no-restricted-globals',
+    depcruise: null,
+  },
+  {
+    name: 'domain imports decimal.js directly',
+    file: 'libs/products/zzfix-a/domain/src/lib/bad-decimal.ts',
+    content: `import { Decimal } from 'decimal.js';\n\nexport const badDecimal = Decimal;\n`,
+    eslint: 'no-restricted-imports',
+    depcruise: null,
+  },
+  {
+    name: 'nest layer imports decimal.js directly',
+    file: 'libs/products/zzfix-a/nest/src/lib/bad-decimal.ts',
+    content: `import { Decimal } from 'decimal.js';\n\nexport const badDecimalNest = Decimal;\n`,
+    eslint: 'no-restricted-imports',
+    depcruise: null,
+  },
+  {
     name: 'provider SDK outside its adapter',
     file: 'libs/products/zzfix-a/nest/src/lib/bad-vendor-sdk.ts',
     content: `import Stripe from 'stripe';\n\nexport const badSdk = Stripe;\n`,
@@ -404,6 +432,19 @@ function main() {
           null,
           2,
         )}\n`,
+      );
+    }
+    // Generated libs each have an eslint.config.mjs that spreads the root
+    // config. The fixtures do the same, so the rules are tested the way real
+    // projects load them and not only through the root config.
+    for (const project of PROJECTS) {
+      const toRoot = project.root
+        .split('/')
+        .map(() => '..')
+        .join('/');
+      write(
+        `${project.root}/eslint.config.mjs`,
+        `import baseConfig from '${toRoot}/eslint.config.mjs';\n\nexport default [...baseConfig];\n`,
       );
     }
     for (const [file, content] of Object.entries(CLEAN_FILES))
