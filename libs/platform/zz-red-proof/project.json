@@ -1,0 +1,9 @@
+{
+  "name": "platform-zz-red-proof",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/zz-red-proof/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "// targets": "to see all targets run: nx show project platform-zz-red-proof --web",
+  "targets": {}
+}

@@ -17,7 +17,9 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
-    "paths": {}
+    "paths": {
+      "@hk/platform/zz-red-proof": ["./libs/platform/zz-red-proof/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }
