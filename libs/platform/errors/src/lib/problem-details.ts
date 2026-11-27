@@ -3,6 +3,7 @@ import {
   type DomainErrorDetails,
   type DomainErrorKind,
 } from '@hk/platform/universal';
+import { defaultRedactor, type Redactor } from '@hk/platform/redaction';
 import { AppError, RequestValidationError, type FieldIssue } from './app-error';
 
 /** The media type of an error response (RFC 9457). */
@@ -37,6 +38,13 @@ export interface ProblemContext {
   instance?: string;
   requestId?: string;
   traceId?: string;
+  /**
+   * Applied to everything in the body that comes from the error: `detail`,
+   * `details` and the field messages. Defaults to the redactor of
+   * @hk/platform/redaction. An error message or its details can quote user
+   * input, and a response must not echo a secret back.
+   */
+  redactor?: Redactor;
 }
 
 /**
@@ -82,21 +90,36 @@ const build = (
   status: number,
   code: string,
   context: ProblemContext,
-  extra: Pick<ProblemDetails, 'detail' | 'details' | 'errors'> = {},
-): ProblemDetails => ({
-  type: 'about:blank',
-  title: titleFor(status),
-  status,
-  code,
-  ...(extra.detail === undefined ? {} : { detail: extra.detail }),
-  ...(context.instance === undefined ? {} : { instance: context.instance }),
-  ...(context.requestId === undefined ? {} : { requestId: context.requestId }),
-  ...(context.traceId === undefined ? {} : { traceId: context.traceId }),
-  ...(extra.details && hasEntries(extra.details)
-    ? { details: extra.details }
-    : {}),
-  ...(extra.errors ? { errors: extra.errors } : {}),
-});
+  raw: Pick<ProblemDetails, 'detail' | 'details' | 'errors'> = {},
+): ProblemDetails => {
+  const redactor = context.redactor ?? defaultRedactor;
+  const extra = {
+    detail:
+      raw.detail === undefined ? undefined : redactor.redactText(raw.detail),
+    details:
+      raw.details === undefined ? undefined : redactor.redact(raw.details),
+    errors: raw.errors?.map((issue) => ({
+      ...issue,
+      message: redactor.redactText(issue.message),
+    })),
+  };
+  return {
+    type: 'about:blank',
+    title: titleFor(status),
+    status,
+    code,
+    ...(extra.detail === undefined ? {} : { detail: extra.detail }),
+    ...(context.instance === undefined ? {} : { instance: context.instance }),
+    ...(context.requestId === undefined
+      ? {}
+      : { requestId: context.requestId }),
+    ...(context.traceId === undefined ? {} : { traceId: context.traceId }),
+    ...(extra.details && hasEntries(extra.details)
+      ? { details: extra.details }
+      : {}),
+    ...(extra.errors ? { errors: extra.errors } : {}),
+  };
+};
 
 /** The response for anything the caller must not learn more about. */
 const internal = (status: number, context: ProblemContext): ProblemDetails =>

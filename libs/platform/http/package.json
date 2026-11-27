@@ -8,6 +8,7 @@
   "dependencies": {
     "tslib": "^2.3.0",
     "@hk/platform/errors": "0.0.1",
-    "@hk/platform/logger": "0.0.1"
+    "@hk/platform/logger": "0.0.1",
+    "@hk/platform/redaction": "0.0.1"
   }
 }

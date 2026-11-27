@@ -1,6 +1,6 @@
 # ADR 0003: Platform kernel libraries, and what NestJS 12 being ESM-only means
 
-- **Status:** Accepted
+- **Status:** Partly superseded by 0008 (redaction)
 - **Date:** 2026-11-27
 - **Decided by:** Henson
 - **Relates to:** ADR 0001 D6 (topology), D9 (events), D23 and D25 (NestJS 12), D24 (tooling)

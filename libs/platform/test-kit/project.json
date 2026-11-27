@@ -1,0 +1,35 @@
+{
+  "name": "platform-test-kit",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/test-kit/src",
+  "projectType": "library",
+  "tags": ["scope:platform", "runtime:universal"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/test-kit",
+        "main": "libs/platform/test-kit/src/index.ts",
+        "tsConfig": "libs/platform/test-kit/tsconfig.lib.json",
+        "assets": ["libs/platform/test-kit/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}

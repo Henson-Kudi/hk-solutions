@@ -1,0 +1,19 @@
+{
+  "name": "platform-redaction",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/redaction/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/redaction",
+        "main": "libs/platform/redaction/src/index.ts",
+        "tsConfig": "libs/platform/redaction/tsconfig.lib.json",
+        "assets": ["libs/platform/redaction/*.md"]
+      }
+    }
+  }
+}
