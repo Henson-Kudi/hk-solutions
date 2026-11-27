@@ -1,0 +1,19 @@
+{
+  "name": "platform-http",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/http/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/http",
+        "main": "libs/platform/http/src/index.ts",
+        "tsConfig": "libs/platform/http/tsconfig.lib.json",
+        "assets": ["libs/platform/http/*.md"]
+      }
+    }
+  }
+}

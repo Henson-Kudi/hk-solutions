@@ -1,0 +1,19 @@
+{
+  "name": "platform-logger",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/logger/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/logger",
+        "main": "libs/platform/logger/src/index.ts",
+        "tsConfig": "libs/platform/logger/tsconfig.lib.json",
+        "assets": ["libs/platform/logger/*.md"]
+      }
+    }
+  }
+}
