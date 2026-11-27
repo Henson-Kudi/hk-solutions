@@ -1,0 +1,112 @@
+name: pr-checks
+
+# The ruleset on main requires the final job, "pr-checks". Add new jobs to its
+# "needs" list instead of adding more required checks in GitHub settings.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # nx affected and commitlint compare against the base commit
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Work out the base commit for nx affected
+        uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
+
+      - name: Formatting
+        run: pnpm format:check
+
+      - name: Commit messages
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        run: pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      - name: Lint files outside Nx projects
+        run: pnpm lint:root
+
+      - name: Lint, typecheck, test, build (affected projects)
+        run: pnpm nx affected -t lint typecheck test build
+
+      - name: Dependency rules
+        run: pnpm depcruise
+
+  boundaries:
+    name: boundary rules self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Plant each violation and check it is rejected
+        run: pnpm verify:boundaries
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # scan every commit, not just the latest tree
+
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false' # keeps this job read-only
+
+  pr-checks:
+    name: pr-checks
+    if: always()
+    needs: [verify, boundaries, secrets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job must have succeeded
+        run: |
+          echo "verify:     $VERIFY"
+          echo "boundaries: $BOUNDARIES"
+          echo "secrets:    $SECRETS"
+          test "$VERIFY" = "success"
+          test "$BOUNDARIES" = "success"
+          test "$SECRETS" = "success"
+        env:
+          VERIFY: ${{ needs.verify.result }}
+          BOUNDARIES: ${{ needs.boundaries.result }}
+          SECRETS: ${{ needs.secrets.result }}
