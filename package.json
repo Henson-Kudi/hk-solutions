@@ -3,7 +3,13 @@
   "version": "0.0.0",
   "license": "UNLICENSED",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "depcruise": "depcruise apps libs --config .dependency-cruiser.cjs",
+    "verify:boundaries": "node tools/scripts/verify-boundaries.mjs"
+  },
   "engines": {
     "node": ">=24",
     "pnpm": ">=12"
@@ -16,6 +22,8 @@
     "react-native": "0.85.3"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10.0.0",
     "@expo/cli": "~56.1.14",
     "@nestjs/schematics": "^12.0.0",
@@ -33,13 +41,16 @@
     "@swc/helpers": "~0.5.18",
     "@types/jest": "~30.0.0",
     "@types/node": "^24.0.0",
+    "dependency-cruiser": "^18.9.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.0.0",
+    "husky": "^9.1.7",
     "jest": "^30.5.0",
     "jest-environment-node": "^30.5.0",
     "jest-util": "~30.3.0",
     "jiti": "2.4.2",
     "jsonc-eslint-parser": "^2.1.0",
+    "lint-staged": "^17.6.2",
     "nx": "24.1.0",
     "prettier": "~3.6.2",
     "ts-jest": "^29.4.7",
@@ -50,5 +61,12 @@
     "vite": "^8.0.0",
     "vitest": "~5.0.1"
   },
-  "packageManager": "pnpm@12.10.1"
+  "packageManager": "pnpm@12.10.1",
+  "lint-staged": {
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": "prettier --write --ignore-unknown"
+  }
 }
