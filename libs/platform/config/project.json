@@ -1,0 +1,19 @@
+{
+  "name": "platform-config",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/config/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/config",
+        "main": "libs/platform/config/src/index.ts",
+        "tsConfig": "libs/platform/config/tsconfig.lib.json",
+        "assets": ["libs/platform/config/*.md"]
+      }
+    }
+  }
+}

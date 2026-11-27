@@ -1,0 +1,19 @@
+{
+  "name": "platform-observability",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/observability/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/observability",
+        "main": "libs/platform/observability/src/index.ts",
+        "tsConfig": "libs/platform/observability/tsconfig.lib.json",
+        "assets": ["libs/platform/observability/*.md"]
+      }
+    }
+  }
+}

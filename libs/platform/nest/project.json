@@ -1,0 +1,28 @@
+{
+  "name": "platform-nest",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/nest/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/nest",
+        "tsConfig": "libs/platform/nest/tsconfig.lib.json",
+        "packageJson": "libs/platform/nest/package.json",
+        "main": "libs/platform/nest/src/index.ts",
+        "assets": ["libs/platform/nest/*.md"]
+      }
+    },
+    "test": {
+      "options": {
+        "env": {
+          "...": true,
+          "NODE_OPTIONS": "--experimental-vm-modules"
+        }
+      }
+    }
+  }
+}

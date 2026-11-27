@@ -1,0 +1,32 @@
+{
+  "name": "platform-queue",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/platform/queue/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/platform/queue",
+        "main": "libs/platform/queue/src/index.ts",
+        "tsConfig": "libs/platform/queue/tsconfig.lib.json",
+        "assets": ["libs/platform/queue/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        {
+          "env": "HK_TEST_REDIS_URL"
+        },
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ]
+    }
+  }
+}
