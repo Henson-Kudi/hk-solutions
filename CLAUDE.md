@@ -2,6 +2,8 @@
 
 Plan of record: docs/plan/implementation-plan.md (local only, gitignored; never commit docs/plan/). Functional reference: HK-Soln/biztrack-cm (read its docs for flows and edge cases; never copy its code).
 
+Decisions and their reasons: docs/adr/ (start with 0001-architecture-baseline.md). Where an ADR and the plan differ, the ADR wins.
+
 ## Never
 - Never import Nest, Drizzle, React, node:* or fs/crypto in a `domain` or `application` lib. Those layers run on the API, desktop and mobile.
 - Never import scope:core from a product, or another product's libs. Products use @hk/contracts/* and events.
@@ -28,10 +30,13 @@ Plan of record: docs/plan/implementation-plan.md (local only, gitignored; never 
 - Ledger and money-path (⚑) work: failure-path tests merge in their own PR before the code.
 - One plan row per branch: feat/p<phase>-<short-name>. Conventional commits.
 - New products and countries via generators: nx g @hk/tools:product <name>, nx g @hk/tools:country-pack <code>.
-- Before opening a PR: nx affected -t lint typecheck test build && npx depcruise apps libs --config .dependency-cruiser.cjs
+- A PR that changes a decision recorded in docs/adr/ adds a new ADR that supersedes it. Accepted ADRs are not edited.
+- Before opening a PR: pnpm format:check && pnpm lint:root && nx affected -t lint typecheck test build && npx depcruise apps libs --config .dependency-cruiser.cjs
 
 ## Commands
 - docker compose -f deploy/compose/docker-compose.yml up -d      local Postgres, Redis, fake providers
+- pnpm infra:up / pnpm infra:down                                same stack, waits until healthy (Postgres on 127.0.0.1:54320, Redis on 127.0.0.1:63790)
+- pnpm verify:boundaries                                         self-test of the boundary rules; run after editing eslint.config.mjs, tools/eslint or .dependency-cruiser.cjs
 - nx run migrator:serve -- --services core,sales                run migrations
 - nx g @hk/tools:product <name>                                  new product
 - nx run-many -t test --projects=tag:runtime:universal --configuration=hermes   universal-runtime tests
