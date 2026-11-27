@@ -16,7 +16,7 @@ export interface HttpClientOptions {
    * Called for every attempt. Return the headers that carry context to the
    * next service: the trace headers, the request id, the service token.
    */
-  headers?: () => Record<string, string>;
+  headers?: () => Record<string, string> | Promise<Record<string, string>>;
   logger?: Logger;
   /** For tests. */
   fetch?: typeof fetch;
@@ -244,6 +244,10 @@ export const createHttpClient = (options: HttpClientOptions): HttpClient => {
       });
 
     for (let attempt = 1; ; attempt += 1) {
+      // Outside the try below on purpose: if building the headers fails (for
+      // example a token cannot be signed) that is not a network error, and
+      // the request is not sent.
+      const contextHeaders = await options.headers?.();
       const timeout = AbortSignal.timeout(timeoutMs);
       const signal = requestOptions.signal
         ? AbortSignal.any([timeout, requestOptions.signal])
@@ -260,7 +264,7 @@ export const createHttpClient = (options: HttpClientOptions): HttpClient => {
             ...(body === undefined
               ? {}
               : { 'content-type': 'application/json' }),
-            ...options.headers?.(),
+            ...contextHeaders,
             ...requestOptions.headers,
             ...(requestOptions.idempotencyKey === undefined
               ? {}

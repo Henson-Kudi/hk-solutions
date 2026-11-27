@@ -33,7 +33,10 @@
       "@hk/platform/testing": ["./libs/platform/testing/src/index.ts"],
       "@hk/platform/idempotency": ["./libs/platform/idempotency/src/index.ts"],
       "@hk/platform/outbox": ["./libs/platform/outbox/src/index.ts"],
-      "@hk/platform/inbox": ["./libs/platform/inbox/src/index.ts"]
+      "@hk/platform/inbox": ["./libs/platform/inbox/src/index.ts"],
+      "@hk/platform/internal-auth": [
+        "./libs/platform/internal-auth/src/index.ts"
+      ]
     }
   },
   "exclude": ["node_modules", "tmp"]
