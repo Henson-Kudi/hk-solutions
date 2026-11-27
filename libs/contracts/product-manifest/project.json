@@ -1,0 +1,35 @@
+{
+  "name": "contracts-product-manifest",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/contracts/product-manifest/src",
+  "projectType": "library",
+  "tags": ["scope:contracts"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/contracts/product-manifest",
+        "main": "libs/contracts/product-manifest/src/index.ts",
+        "tsConfig": "libs/contracts/product-manifest/tsconfig.lib.json",
+        "assets": ["libs/contracts/product-manifest/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}

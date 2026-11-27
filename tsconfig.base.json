@@ -38,7 +38,15 @@
         "./libs/platform/internal-auth/src/index.ts"
       ],
       "@hk/platform/redaction": ["./libs/platform/redaction/src/index.ts"],
-      "@hk/platform/test-kit": ["./libs/platform/test-kit/src/index.ts"]
+      "@hk/platform/test-kit": ["./libs/platform/test-kit/src/index.ts"],
+      "@hk/contracts/product-manifest": [
+        "./libs/contracts/product-manifest/src/index.ts"
+      ],
+      "@hk/contracts/permissions": [
+        "./libs/contracts/permissions/src/index.ts"
+      ],
+      "@hk/contracts/events": ["./libs/contracts/events/src/index.ts"],
+      "@hk/contracts/sync": ["./libs/contracts/sync/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
