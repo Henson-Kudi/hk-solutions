@@ -1,0 +1,15 @@
+{
+  "name": "@hk/platform/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "drizzle-orm": "^0.45.4",
+    "@hk/platform/logger": "0.0.1",
+    "pg": "^8.23.1",
+    "@hk/platform/universal": "0.0.1"
+  }
+}
