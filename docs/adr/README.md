@@ -19,6 +19,7 @@ these before proposing a change to how the repo is structured.
 | [0012](./0012-uae-pack-reverse-charge-and-shared-posting-rules.md) | The UAE pack, reverse charge, and shared posting rules             | Accepted                  |
 | [0013](./0013-audit-hash-chain.md)                                 | The audit hash chain, and how core libs are laid out               | Accepted                  |
 | [0014](./0014-file-storage.md)                                     | File storage                                                       | Accepted                  |
+| [0015](./0015-comms-ports.md)                                      | Messaging ports for email, SMS and WhatsApp                        | Accepted                  |
 
 ## Adding one
 
