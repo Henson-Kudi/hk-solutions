@@ -9,7 +9,7 @@
     "format:check": "prettier --check .",
     "depcruise": "depcruise apps libs --config .dependency-cruiser.cjs",
     "verify:boundaries": "node tools/scripts/verify-boundaries.mjs",
-    "test:hermes": "nx run-many -t test --projects=tag:runtime:universal,tag:scope:contracts --configuration=hermes && node tools/scripts/hermes-compile.mjs",
+    "test:hermes": "nx run-many -t test --projects=tag:runtime:universal,tag:scope:contracts,tag:scope:country-pack --configuration=hermes && node tools/scripts/hermes-compile.mjs",
     "lint:root": "eslint tools \"*.{mjs,cjs,js,ts}\"",
     "infra:up": "docker compose -f deploy/compose/docker-compose.yml up -d --wait",
     "infra:down": "docker compose -f deploy/compose/docker-compose.yml down"

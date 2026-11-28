@@ -22,10 +22,15 @@ import {
 } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COUNTRY_CODES } from '../eslint/country-literals.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TSCONFIG = join(ROOT, 'tsconfig.base.json');
 const NX_RULE = '@nx/enforce-module-boundaries';
+const KERNEL_COUNTRIES = join(
+  ROOT,
+  'libs/country-packs/kernel/src/lib/country.ts',
+);
 
 /** Fixture projects: root folder, import alias and tags. */
 const PROJECTS = [
@@ -75,6 +80,11 @@ const PROJECTS = [
     tags: ['scope:product', 'product:zzfix-b', 'layer:infra-pg'],
   },
   {
+    root: 'libs/country-packs/zzfix',
+    alias: '@hk/country-packs/zzfix',
+    tags: ['scope:country-pack'],
+  },
+  {
     root: 'libs/zzfix-untagged',
     alias: '@hk/zzfix-untagged',
     tags: [],
@@ -94,6 +104,13 @@ const CLEAN_FILES = {
   'libs/products/zzfix-b/domain/src/index.ts': `export const otherProduct = 'b';\n`,
   'libs/products/zzfix-b/infra-pg/src/index.ts': `export const tableB = { name: 'b' };\n`,
   'libs/zzfix-untagged/src/index.ts': `export const untagged = 1;\n`,
+  // The three places a country code may be written: a pack, seed data, a test.
+  'libs/country-packs/zzfix/src/index.ts': `export const packCountry = 'CM';\n`,
+  'libs/products/zzfix-a/infra-pg/src/lib/countries.seed.ts': `export const seededCountries = ['CM', 'AE'];\n`,
+  'libs/products/zzfix-a/infra-pg/src/seeds/countries.ts': `export const moreSeededCountries = [\`AE\`];\n`,
+  'libs/products/zzfix-a/domain/src/lib/thing.spec.ts': `export const fixtureBusiness = { country: 'AE' };\n`,
+  // A longer string that merely contains a code is not a country literal.
+  'libs/products/zzfix-a/domain/src/lib/locale.ts': `export const locale = 'fr-CM';\n\nexport const label = \`\${locale} CM\`;\n`,
 };
 
 /**
@@ -264,6 +281,27 @@ const VIOLATIONS = [
     eslint: 'no-restricted-syntax',
     depcruise: null,
   },
+  {
+    name: 'product code compares against a country code',
+    file: 'libs/products/zzfix-a/domain/src/lib/bad-country.ts',
+    content: `export const isCameroon = (country: string) => country === 'CM';\n`,
+    eslint: 'no-restricted-syntax',
+    depcruise: null,
+  },
+  {
+    name: 'country code written as a template literal',
+    file: 'libs/products/zzfix-a/application/src/lib/bad-country-template.ts',
+    content: `export const defaultCountry = \`AE\`;\n`,
+    eslint: 'no-restricted-syntax',
+    depcruise: null,
+  },
+  {
+    name: 'nest layer switches on a country code',
+    file: 'libs/products/zzfix-a/nest/src/lib/bad-country-switch.ts',
+    content: `export const vatLabel = (country: string) => {\n  switch (country) {\n    case 'AE':\n      return 'VAT';\n    default:\n      return 'TVA';\n  }\n};\n`,
+    eslint: 'no-restricted-syntax',
+    depcruise: null,
+  },
 ];
 
 const posix = (path) => path.split('\\').join('/');
@@ -375,9 +413,33 @@ function cleanUp(originalTsconfig) {
     'libs/products',
     'libs/core',
     'libs/platform',
+    'libs/country-packs',
   ]) {
     removeIfEmpty(folder);
   }
+}
+
+/**
+ * The lint rule keeps its own copy of the country list, because ESLint cannot
+ * import TypeScript. A country in one list and not the other would either be
+ * unprotected or impossible to use.
+ */
+function countryListMismatch() {
+  const file = posix(relative(ROOT, KERNEL_COUNTRIES));
+  const source = readFileSync(KERNEL_COUNTRIES, 'utf8');
+  const match = /COUNTRY_CODES\s*=\s*\[([^\]]*)\]\s*as const/.exec(source);
+  if (!match) {
+    return `could not find COUNTRY_CODES in ${file}`;
+  }
+  const kernel = [...match[1].matchAll(/['"]([A-Z]{2})['"]/g)].map(
+    (found) => found[1],
+  );
+  const same =
+    kernel.length === COUNTRY_CODES.length &&
+    kernel.every((code, index) => code === COUNTRY_CODES[index]);
+  return same
+    ? null
+    : `country lists differ: ${file} has [${kernel.join(', ')}], tools/eslint/country-literals.mjs has [${COUNTRY_CODES.join(', ')}]`;
 }
 
 function main() {
@@ -401,6 +463,11 @@ function main() {
     cleanUpOnce();
     process.exit(130);
   });
+
+  console.log('0. The lint rule and the kernel must list the same countries');
+  const mismatch = countryListMismatch();
+  if (mismatch) failures.push(mismatch);
+  console.log(`   ${mismatch ? 'FAIL' : 'pass'}`);
 
   try {
     const tsconfig = JSON.parse(originalTsconfig);

@@ -1,10 +1,10 @@
 /**
  * Compiles every pure lib with the real Hermes compiler.
  *
- * For each project tagged runtime:universal, layer:domain or
- * layer:application, this bundles src/index.ts together with its npm
- * dependencies and runs the bundle through hermesc, the compiler React Native
- * uses to build an app. If Hermes cannot parse the code, or a third-party
+ * For each project tagged runtime:universal, scope:contracts,
+ * scope:country-pack, layer:domain or layer:application, this bundles
+ * src/index.ts together with its npm dependencies and runs the bundle through
+ * hermesc, the compiler React Native uses to build an app. If Hermes cannot parse the code, or a third-party
  * dependency ships syntax Hermes does not support, this fails here and not in
  * a mobile build months later.
  *
@@ -28,6 +28,7 @@ const OUT = join(ROOT, 'dist/hermes');
 const PURE_TAGS = [
   'runtime:universal',
   'scope:contracts',
+  'scope:country-pack',
   'layer:domain',
   'layer:application',
 ];
