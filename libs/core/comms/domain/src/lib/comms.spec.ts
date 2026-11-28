@@ -118,8 +118,10 @@ describe('phone numbers', () => {
     ['+237 (600) 000.001', '+237600000001'],
     ['  +971500000001 ', '+971500000001'],
     ['+12025550100', '+12025550100'],
-    ['+123456789012345', '+123456789012345'],
-    ['+12345678', '+12345678'],
+    // A Cameroon landline, an Ivorian number (ten digits) and a French mobile.
+    ['+237222000001', '+237222000001'],
+    ['+2250700000001', '+2250700000001'],
+    ['+33 6 12 34 56 78', '+33612345678'],
   ])('accepts "%s" as %s', (input, expected) => {
     expect(valueOf(parsePhoneNumber(input))).toBe(expected);
   });
@@ -137,8 +139,23 @@ describe('phone numbers', () => {
     ['++237600000001', 'two plus signs'],
     ['+237600000001\n+237600000002', 'two numbers'],
     ['+٢٣٧٦٠٠٠٠٠٠٠١', 'Arabic-Indic digits'],
+    // The right shape, but not a number its country could have issued.
+    ['+999123456789', 'a country code that does not exist'],
+    ['+237999999999', 'Cameroon digits no Cameroon number starts with'],
+    ['+2376000000', 'too short for Cameroon'],
+    ['+23760000000123', 'too long for Cameroon'],
+    ['+9715000000', 'too short for the UAE'],
+    ['+1202555010', 'too short for North America'],
+    ['+123456789012345', 'fifteen digits that fit no country'],
   ])('rejects "%s" (%s)', (input) => {
     expect(codeOf(parsePhoneNumber(input))).toBe(COMMS_ERRORS.ADDRESS_INVALID);
+  });
+
+  it('never quotes a number its country could not have issued', () => {
+    const result = parsePhoneNumber('+237999999123');
+    expect(!result.ok && JSON.stringify(result.error.toJSON())).not.toContain(
+      '999999',
+    );
   });
 
   it('never quotes the number in its error', () => {
