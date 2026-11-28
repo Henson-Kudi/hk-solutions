@@ -23,6 +23,7 @@ these before proposing a change to how the repo is structured.
 | [0016](./0016-identity-accounts.md)                                | Identity accounts, one-time codes and passwords                    | Accepted                  |
 | [0017](./0017-identity-sessions.md)                                | Sessions, token rotation and password lockout                      | Accepted                  |
 | [0018](./0018-identity-passkeys.md)                                | Passkeys                                                           | Accepted                  |
+| [0019](./0019-phone-number-validation.md)                          | Phone numbers are checked against their country's numbering        | Accepted                  |
 
 ## Adding one
 
