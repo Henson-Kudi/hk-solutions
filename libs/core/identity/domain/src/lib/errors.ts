@@ -56,6 +56,39 @@ export const IDENTITY_ERRORS = {
   PASSKEY_ALREADY_REGISTERED: 'IDENTITY_PASSKEY_ALREADY_REGISTERED',
   /** The person has no passkey with that id. */
   PASSKEY_NOT_FOUND: 'IDENTITY_PASSKEY_NOT_FOUND',
+  /**
+   * The person may not enter this business, or may not do this in it. One
+   * code for "not a member", "suspended" and "lacks the permission", so a
+   * stranger learns nothing about a business from the answer.
+   */
+  ACCESS_DENIED: 'IDENTITY_ACCESS_DENIED',
+  /** A member of the business, but not allowed in this branch. */
+  BRANCH_DENIED: 'IDENTITY_BRANCH_DENIED',
+  /** A membership's branches must be "all" or a list of at least one branch. */
+  BRANCH_SCOPE_INVALID: 'IDENTITY_BRANCH_SCOPE_INVALID',
+  ROLE_NOT_FOUND: 'IDENTITY_ROLE_NOT_FOUND',
+  ROLE_NAME_INVALID: 'IDENTITY_ROLE_NAME_INVALID',
+  /** The business already has a role with this name. */
+  ROLE_NAME_TAKEN: 'IDENTITY_ROLE_NAME_TAKEN',
+  /** A permission in the list is not in the registry. */
+  ROLE_PERMISSION_UNKNOWN: 'IDENTITY_ROLE_PERMISSION_UNKNOWN',
+  /** The owner role cannot be changed, and no built-in role can be deleted. */
+  ROLE_LOCKED: 'IDENTITY_ROLE_LOCKED',
+  /** A role that members still hold cannot be deleted. */
+  ROLE_IN_USE: 'IDENTITY_ROLE_IN_USE',
+  /** The business has as many roles as are allowed. */
+  ROLE_LIMIT: 'IDENTITY_ROLE_LIMIT',
+  /** Nobody can grant a permission they do not hold themselves. */
+  PERMISSION_EXCEEDS_OWN: 'IDENTITY_PERMISSION_EXCEEDS_OWN',
+  MEMBER_NOT_FOUND: 'IDENTITY_MEMBER_NOT_FOUND',
+  /** The person is already a member of the business. */
+  MEMBER_EXISTS: 'IDENTITY_MEMBER_EXISTS',
+  /** The owner's membership cannot be changed, suspended or removed. */
+  OWNER_PROTECTED: 'IDENTITY_OWNER_PROTECTED',
+  /** Nobody changes their own membership. */
+  SELF_CHANGE_FORBIDDEN: 'IDENTITY_SELF_CHANGE_FORBIDDEN',
+  /** Someone else changed the role or membership first. Read it again and retry. */
+  CHANGED_MEANWHILE: 'IDENTITY_CHANGED_MEANWHILE',
 } as const;
 
 export type IdentityErrorCode =

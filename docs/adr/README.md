@@ -23,6 +23,7 @@ these before proposing a change to how the repo is structured.
 | [0016](./0016-identity-accounts.md)                                | Identity accounts, one-time codes and passwords                    | Accepted                  |
 | [0017](./0017-identity-sessions.md)                                | Sessions, token rotation and password lockout                      | Accepted                  |
 | [0018](./0018-identity-passkeys.md)                                | Passkeys                                                           | Accepted                  |
+| [0020](./0020-identity-access.md)                                  | Access: roles, memberships and choosing a business                 | Accepted                  |
 
 ## Adding one
 

@@ -8,6 +8,8 @@
   "dependencies": {
     "tslib": "^2.3.0",
     "@hk/core/comms/domain": "0.0.1",
-    "@hk/platform/universal": "0.0.1"
+    "@hk/platform/universal": "0.0.1",
+    "@hk/contracts/permissions": "0.0.1",
+    "@hk/contracts/product-manifest": "0.0.1"
   }
 }

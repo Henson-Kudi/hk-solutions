@@ -1,10 +1,14 @@
+import type { SystemRoleKey } from '@hk/contracts/permissions';
+import type { ProductKey } from '@hk/contracts/product-manifest';
 import type {
   Identifier,
+  Membership,
   OtpChallenge,
   OtpPurpose,
   Passkey,
   PasskeyChallenge,
   PasswordAttempts,
+  Role,
   Session,
   SessionRevokeReason,
   SessionTokenPair,
@@ -347,4 +351,127 @@ export interface PasskeyVerifier {
       'credentialId' | 'publicKey' | 'signCount' | 'transports'
     >;
   }): Promise<VerifiedAssertion | null>;
+}
+
+// ── Access: roles, memberships, and which businesses a person may enter ─────
+
+/** One business of one tenant. */
+export interface BusinessScope {
+  tenantId: string;
+  businessId: string;
+}
+
+/**
+ * Runs access work as one unit, in one of two places.
+ *
+ * `tenant` is inside one business: a tenant transaction on the server, where
+ * row-level security shows that business's roles and memberships and no
+ * other's. Called inside an open unit of work for the same business, it
+ * joins it.
+ *
+ * `system` is outside any business: for the question that has to be
+ * answered before a business is chosen, "which businesses may this person
+ * enter?". Roles and memberships are invisible there.
+ *
+ * One cannot be opened inside the other.
+ */
+export interface AccessUnitOfWork {
+  tenant<T>(scope: BusinessScope, action: () => Promise<T>): Promise<T>;
+  system<T>(action: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * The roles of the current business. Every implementation passes
+ * roleRepositoryConformance. Calls run inside AccessUnitOfWork.tenant.
+ */
+export interface RoleRepository {
+  /** Every role of the business: built-in ones first, then by name. */
+  list(): Promise<Role[]>;
+  findById(roleId: string): Promise<Role | null>;
+  /** The business's copy of a built-in role, or null. */
+  findByKey(key: SystemRoleKey): Promise<Role | null>;
+  create(role: Role): Promise<void>;
+  /**
+   * Saves a changed role and returns it at its next version. `role.version`
+   * is the version that was read: when the stored one has moved on, or the
+   * role is gone, it rejects with IDENTITY_CHANGED_MEANWHILE.
+   */
+  update(role: Role): Promise<Role>;
+  /** Removes a role. False when the business has no such role. */
+  remove(roleId: string): Promise<boolean>;
+}
+
+/**
+ * The memberships of the current business. Every implementation passes
+ * membershipRepositoryConformance. Calls run inside AccessUnitOfWork.tenant.
+ */
+export interface MembershipRepository {
+  findById(membershipId: string): Promise<Membership | null>;
+  /** The person's membership of this business, whatever its status, or null. */
+  findByUser(userId: string): Promise<Membership | null>;
+  /** Every membership of the business, removed ones included, oldest first. */
+  list(): Promise<Membership[]>;
+  /** How many members hold the role. Removed members do not count. */
+  countWithRole(roleId: string): Promise<number>;
+  /**
+   * Adds a membership. Rejects with IDENTITY_MEMBER_EXISTS when the person
+   * already has one in this business, whatever its status.
+   */
+  create(membership: Membership): Promise<void>;
+  /** As RoleRepository.update: saves at the next version, or rejects when it moved. */
+  update(membership: Membership): Promise<Membership>;
+}
+
+/** One line of the directory: a person, a business, and whether they may enter it. */
+export interface DirectoryEntry {
+  userId: string;
+  tenantId: string;
+  businessId: string;
+  /** True while the membership is active. */
+  active: boolean;
+}
+
+/**
+ * The directory of who belongs to which business. It is the one piece of
+ * access kept outside the businesses, because it answers the question asked
+ * before a business is chosen. It holds no role, no permission and no
+ * branch: only the link.
+ *
+ * `set` is called inside AccessUnitOfWork.tenant, in the same unit as the
+ * membership it mirrors, so the two cannot disagree. `find` and
+ * `listActive` are called inside AccessUnitOfWork.system.
+ *
+ * Every implementation passes membershipDirectoryConformance.
+ */
+export interface MembershipDirectory {
+  /** Adds the line, or replaces the one for the same person and business. */
+  set(entry: DirectoryEntry): Promise<void>;
+  find(userId: string, businessId: string): Promise<DirectoryEntry | null>;
+  /** The businesses the person may enter now. */
+  listActive(userId: string): Promise<DirectoryEntry[]>;
+}
+
+/** Which products a business has. Answered by core/entitlements when it exists. */
+export interface ProductEntitlements {
+  enabledProducts(scope: BusinessScope): Promise<ProductKey[]>;
+}
+
+/** A change to access, for the business's audit trail. */
+export interface AccessAuditEvent {
+  actorUserId: string | null;
+  action: 'create' | 'update' | 'delete';
+  /** "core.role" or "core.membership". */
+  entityType: string;
+  entityId: string;
+  /** What changed. Ids and permission names only: never a name or a phone number. */
+  details: Record<string, string | number | boolean | null | string[]>;
+}
+
+/**
+ * Where changes to access are recorded. On the server this is the
+ * business's audit log (core/audit). Called inside AccessUnitOfWork.tenant,
+ * so the record commits with the change or not at all.
+ */
+export interface AccessAudit {
+  record(scope: BusinessScope, event: AccessAuditEvent): Promise<void>;
 }
