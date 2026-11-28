@@ -101,6 +101,22 @@ export const fixtureCodes = (): TaxCodeDef[] => [
     ],
   },
   {
+    code: 'RC',
+    name: text('Reverse charge'),
+    treatment: 'reverse_charge',
+    components: [
+      {
+        key: 'vat',
+        name: text('VAT'),
+        rate: createRateTable('fixture.rc.vat', [
+          { effectiveFrom: '2010-01-01', value: '0.10', source },
+        ]),
+        outputRole: 'vat.output',
+        inputRole: 'vat.input',
+      },
+    ],
+  },
+  {
     code: 'EXEMPT',
     name: text('Exempt'),
     treatment: 'exempt',
@@ -134,14 +150,18 @@ export const fixtureCalculate =
       for (const component of code.components) {
         const rate = component.rate.valueAt(request.date);
         if (!rate.ok) return rate;
+        const reverse = code.treatment === 'reverse_charge';
+        const isSale = request.direction === 'sale';
         components.push({
           key: component.key,
           rate: rate.value,
-          amount: line.net.times(rate.value).roundToMinorUnit('HALF_UP'),
-          role:
-            request.direction === 'sale'
-              ? component.outputRole
-              : component.inputRole,
+          // Under reverse charge the seller charges nothing.
+          amount:
+            reverse && isSale
+              ? Money.zero(currency)
+              : line.net.times(rate.value).roundToMinorUnit('HALF_UP'),
+          role: isSale ? component.outputRole : component.inputRole,
+          ...(reverse && !isSale ? { counterRole: component.outputRole } : {}),
         });
       }
       const tax = Money.sum(
@@ -154,7 +174,9 @@ export const fixtureCalculate =
         net: line.net,
         components,
         tax,
-        gross: line.net.plus(tax),
+        // A reverse charge buyer pays the supplier the net only.
+        gross:
+          code.treatment === 'reverse_charge' ? line.net : line.net.plus(tax),
       });
     }
     return ok({

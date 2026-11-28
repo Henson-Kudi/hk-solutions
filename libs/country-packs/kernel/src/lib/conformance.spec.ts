@@ -51,6 +51,8 @@ const mapLines = (
 ): TaxCalculation => ({ ...result, lines: result.lines.map(change) });
 
 const AMOUNTS = 'tax: every code calculates, and the amounts add up';
+const RC_CASE =
+  'tax: under reverse charge the buyer accounts for the tax and the seller charges none';
 
 describe('pack conformance suite', () => {
   // This is how a pack uses the suite.
@@ -202,6 +204,7 @@ describe('pack conformance suite', () => {
         [
           AMOUNTS,
           'tax: zero-rated, exempt and out-of-scope codes charge nothing',
+          RC_CASE,
           'tax: nothing is charged on a zero amount',
           'tax: totals are the sums of the lines',
         ],
@@ -217,6 +220,7 @@ describe('pack conformance suite', () => {
         [
           AMOUNTS,
           'tax: zero-rated, exempt and out-of-scope codes charge nothing',
+          RC_CASE,
           'tax: nothing is charged on a zero amount',
           'tax: totals are the sums of the lines',
         ],
@@ -232,6 +236,7 @@ describe('pack conformance suite', () => {
         [
           AMOUNTS,
           'tax: zero-rated, exempt and out-of-scope codes charge nothing',
+          RC_CASE,
           'tax: nothing is charged on a zero amount',
           'tax: totals are the sums of the lines',
         ],
@@ -256,7 +261,7 @@ describe('pack conformance suite', () => {
           d.tax.calculate = (request) =>
             calculate({ ...request, direction: 'sale' });
         },
-        [AMOUNTS],
+        [AMOUNTS, RC_CASE],
       ],
       [
         'changes the net amount',
@@ -271,6 +276,7 @@ describe('pack conformance suite', () => {
         [
           AMOUNTS,
           'tax: zero-rated, exempt and out-of-scope codes charge nothing',
+          RC_CASE,
           'tax: totals are the sums of the lines',
         ],
       ],
@@ -292,6 +298,47 @@ describe('pack conformance suite', () => {
           lines: [...result.lines].reverse(),
         })),
         ['tax: totals are the sums of the lines'],
+      ],
+      [
+        'adds the tax to what a reverse charge buyer pays the supplier',
+        withResult((result, request) =>
+          mapLines(result, (line) =>
+            line.taxCode === 'RC' && request.direction === 'purchase'
+              ? { ...line, gross: line.net.plus(line.tax) }
+              : line,
+          ),
+        ),
+        // The line no longer agrees with the total, so the amounts case
+        // sees it too.
+        [AMOUNTS, RC_CASE],
+      ],
+      [
+        'does not post reverse charge tax as output tax',
+        withResult((result) =>
+          mapLines(result, (line) => ({
+            ...line,
+            components: line.components.map((component) => ({
+              key: component.key,
+              rate: component.rate,
+              amount: component.amount,
+              role: component.role,
+            })),
+          })),
+        ),
+        [RC_CASE],
+      ],
+      [
+        'charges nothing to the buyer under reverse charge either',
+        (d) => {
+          const calculate = fixtureCalculate(d.tax.codes);
+          d.tax.calculate = (request) =>
+            calculate(
+              request.lines.some((line) => line.taxCode === 'RC')
+                ? { ...request, direction: 'sale' }
+                : request,
+            );
+        },
+        [AMOUNTS, RC_CASE],
       ],
       [
         'charges tax on an exempt code',

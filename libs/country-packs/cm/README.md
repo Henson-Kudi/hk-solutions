@@ -28,7 +28,7 @@ imports a pack and never writes a country code.
 | `tax/codes.ts`     | VAT codes and their dated rates                                            |
 | `tax/engine.ts`    | The VAT calculation                                                        |
 | `business.ts`      | Legal forms, NIU and RCCM validators, registration fields                  |
-| `posting-rules.ts` | The posting rules a new business starts with                               |
+| `posting-rules.ts` | The kernel's standard posting rules, with tax on advances                  |
 | `sources.ts`       | Where each value comes from                                                |
 
 ## VAT

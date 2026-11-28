@@ -3,6 +3,7 @@ export * from './lib/conformance';
 export * from './lib/country';
 export * from './lib/country-pack';
 export * from './lib/effective-dated';
+export * from './lib/posting-rule-seeds';
 export * from './lib/registry';
 export * from './lib/system-roles';
 export * from './lib/validation';
