@@ -1,0 +1,35 @@
+{
+  "name": "country-packs-ae",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/country-packs/ae/src",
+  "projectType": "library",
+  "tags": ["scope:country-pack", "pack:ae"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/country-packs/ae",
+        "main": "libs/country-packs/ae/src/index.ts",
+        "tsConfig": "libs/country-packs/ae/tsconfig.lib.json",
+        "assets": ["libs/country-packs/ae/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}

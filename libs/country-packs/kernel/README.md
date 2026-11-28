@@ -69,16 +69,17 @@ that, and an accountant reviews them.
 
 ## What is in here
 
-| File                 | Holds                                                                         |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `country.ts`         | `COUNTRY_CODES`, `CountryCode`                                                |
-| `capabilities.ts`    | `CAPABILITY_KEYS`, `CapabilityKey`                                            |
-| `effective-dated.ts` | `RateTable`, `SourceNote`, `createRateTable`                                  |
-| `country-pack.ts`    | `CountryPack` and the types of its parts: chart, posting rules, tax, payments |
-| `validation.ts`      | `findPackIssues`, `findPackManifestIssues`, `findUnconfirmedValues`           |
-| `registry.ts`        | `createPackRegistry`                                                          |
-| `system-roles.ts`    | `SYSTEM_ROLES`: the role names every pack shares                              |
-| `conformance.ts`     | `countryPackConformance`                                                      |
+| File                    | Holds                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `country.ts`            | `COUNTRY_CODES`, `CountryCode`                                                |
+| `capabilities.ts`       | `CAPABILITY_KEYS`, `CapabilityKey`                                            |
+| `effective-dated.ts`    | `RateTable`, `SourceNote`, `createRateTable`                                  |
+| `country-pack.ts`       | `CountryPack` and the types of its parts: chart, posting rules, tax, payments |
+| `validation.ts`         | `findPackIssues`, `findPackManifestIssues`, `findUnconfirmedValues`           |
+| `posting-rule-seeds.ts` | `standardPostingRules`: the starter posting rules, shared by every pack       |
+| `registry.ts`           | `createPackRegistry`                                                          |
+| `system-roles.ts`       | `SYSTEM_ROLES`: the role names every pack shares                              |
+| `conformance.ts`        | `countryPackConformance`                                                      |
 
 ## Not here yet
 

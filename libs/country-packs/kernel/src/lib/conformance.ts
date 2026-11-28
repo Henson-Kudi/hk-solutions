@@ -345,6 +345,82 @@ const taxCases: Case[] = [
     },
   },
   {
+    name: 'tax: under reverse charge the buyer accounts for the tax and the seller charges none',
+    run: async (subject) => {
+      const { asOf } = subject;
+      for (const code of subject.pack.tax.codes) {
+        if (code.treatment !== 'reverse_charge') continue;
+
+        const sale = calculated(
+          subject,
+          requestFor(subject, code, 'sale'),
+          `${code.code} sale`,
+        );
+        expectTrue(sale.totalTax.isZero(), `${code.code} sale: no tax charged`);
+        expectMoney(
+          sale.totalGross,
+          sale.totalNet,
+          `${code.code} sale: the customer pays the net`,
+        );
+
+        const purchase = calculated(
+          subject,
+          requestFor(subject, code, 'purchase'),
+          `${code.code} purchase`,
+        );
+        expectMoney(
+          purchase.totalGross,
+          purchase.totalNet,
+          `${code.code} purchase: the supplier is paid the net`,
+        );
+        const taxed = code.components.some((component) => {
+          const rate = component.rate.valueAt(asOf);
+          return rate.ok && rate.value !== '0';
+        });
+        expectTrue(
+          !taxed || purchase.totalTax.isPositive(),
+          `${code.code} purchase: the buyer accounts for the tax`,
+        );
+        for (const line of purchase.lines) {
+          // Checked on the line as well as the total: see the untaxed case.
+          expectMoney(
+            line.gross,
+            line.net,
+            `${code.code} purchase: the line's gross is its net`,
+          );
+          for (const component of line.components) {
+            const definition = code.components.find(
+              (candidate) => candidate.key === component.key,
+            );
+            expectEqual(
+              component.counterRole,
+              definition?.outputRole,
+              `${code.code} purchase: ${component.key} is also posted as output tax`,
+            );
+          }
+        }
+        for (const line of sale.lines) {
+          expectTrue(
+            line.tax.isZero(),
+            `${code.code} sale: no tax on the line`,
+          );
+          expectMoney(
+            line.gross,
+            line.net,
+            `${code.code} sale: the line's gross is its net`,
+          );
+          for (const component of line.components) {
+            expectEqual(
+              component.counterRole,
+              undefined,
+              `${code.code} sale: no counter posting`,
+            );
+          }
+        }
+      }
+    },
+  },
+  {
     name: 'tax: nothing is charged on a zero amount',
     run: async (subject) => {
       for (const code of subject.pack.tax.codes) {

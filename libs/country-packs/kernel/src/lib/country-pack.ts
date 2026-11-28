@@ -292,6 +292,12 @@ export interface TaxComponentAmount {
   readonly amount: Money;
   /** The role to post to for this direction, when the component has one. */
   readonly role?: SystemRole;
+  /**
+   * Set only on a reverse charge purchase: the output role. The buyer
+   * accounts for the tax itself, so the same amount is debited to `role`
+   * (input tax) and credited to `counterRole` (output tax).
+   */
+  readonly counterRole?: SystemRole;
 }
 
 export interface TaxLineResult {
@@ -301,7 +307,14 @@ export interface TaxLineResult {
   readonly components: readonly TaxComponentAmount[];
   /** The sum of the components. */
   readonly tax: Money;
-  /** What the customer is charged for this line: net plus the tax charged. */
+  /**
+   * What changes hands for this line: net plus the tax the seller charges.
+   *
+   * Under reverse charge the seller charges no tax. On the sale the
+   * components are zero. On the purchase the components are the tax the buyer
+   * accounts for itself, and `gross` is still the net, because that is what
+   * the supplier is paid.
+   */
   readonly gross: Money;
 }
 

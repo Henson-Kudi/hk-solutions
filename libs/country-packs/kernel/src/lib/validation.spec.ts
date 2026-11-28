@@ -602,6 +602,14 @@ describe('findPackIssues', () => {
       'has neither an output nor an input role',
     ],
     [
+      'a reverse charge component with no input role',
+      (d) => {
+        pick(taxCode(d, 'RC').components, 0).inputRole = undefined;
+      },
+      'tax',
+      'a reverse charge component needs an output and an input role',
+    ],
+    [
       'two components with the same key',
       (d) => {
         pick(taxCode(d, 'DUO').components, 1).key = 'vat';

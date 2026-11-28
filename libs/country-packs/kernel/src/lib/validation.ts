@@ -504,6 +504,17 @@ export const findPackIssues = (pack: CountryPack): PackIssue[] => {
         }
       }
       if (
+        code.treatment === 'reverse_charge' &&
+        (component.outputRole === undefined ||
+          component.inputRole === undefined)
+      ) {
+        // The buyer posts the same amount to both.
+        report(
+          'tax',
+          `${which}: a reverse charge component needs an output and an input role`,
+        );
+      }
+      if (
         component.outputRole === undefined &&
         component.inputRole === undefined
       ) {
