@@ -1,0 +1,35 @@
+{
+  "name": "core-comms-application",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/comms/application/src",
+  "projectType": "library",
+  "tags": ["scope:core", "layer:application"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/core/comms/application",
+        "main": "libs/core/comms/application/src/index.ts",
+        "tsConfig": "libs/core/comms/application/tsconfig.lib.json",
+        "assets": ["libs/core/comms/application/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}

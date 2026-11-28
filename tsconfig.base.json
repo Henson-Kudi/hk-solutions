@@ -60,7 +60,11 @@
         "./libs/core/files/application/src/index.ts"
       ],
       "@hk/core/files/infra-pg": ["./libs/core/files/infra-pg/src/index.ts"],
-      "@hk/core/files/infra-s3": ["./libs/core/files/infra-s3/src/index.ts"]
+      "@hk/core/files/infra-s3": ["./libs/core/files/infra-s3/src/index.ts"],
+      "@hk/core/comms/domain": ["./libs/core/comms/domain/src/index.ts"],
+      "@hk/core/comms/application": [
+        "./libs/core/comms/application/src/index.ts"
+      ]
     }
   },
   "exclude": ["node_modules", "tmp"]
