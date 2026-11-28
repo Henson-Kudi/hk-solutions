@@ -41,6 +41,8 @@ import {
 } from './node-crypto';
 import {
   PgOtpRepository,
+  PgPasswordAttemptsRepository,
+  PgSessionRepository,
   PgUserRepository,
   createPgIdentityUnitOfWork,
 } from './pg-repositories';
@@ -523,6 +525,8 @@ describeWithPostgres('identity on PostgreSQL', () => {
       accounts = createAccounts({
         users,
         otps,
+        sessions: new PgSessionRepository(schema.tables),
+        passwordAttempts: new PgPasswordAttemptsRepository(schema.tables),
         unitOfWork: createPgIdentityUnitOfWork(database),
         passwordHasher: insecureTestPasswordHasher,
         otpCodec: codec,
@@ -656,6 +660,8 @@ describeWithPostgres('identity on PostgreSQL', () => {
       const withSms = createAccounts({
         users,
         otps,
+        sessions: new PgSessionRepository(schema.tables),
+        passwordAttempts: new PgPasswordAttemptsRepository(schema.tables),
         unitOfWork: createPgIdentityUnitOfWork(database),
         passwordHasher: createArgon2idPasswordHasher(),
         otpCodec: createHmacOtpCodec(Buffer.alloc(32, 5)),

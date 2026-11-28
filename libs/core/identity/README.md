@@ -1,9 +1,10 @@
 # core/identity
 
-Who a person is, and how they prove it. Decisions and their reasons: `docs/adr/0016`.
+Who a person is, and how they prove it. Decisions and their reasons: `docs/adr/0016` (accounts)
+and `docs/adr/0017` (sessions).
 
-Identity is delivered in five parts (plan row 3.2). This is part 1, **accounts**. Sessions,
-passkeys, access (roles, memberships, invites) and shared devices follow.
+Identity is delivered in five parts (plan row 3.2). Parts 1 and 2 are here: **accounts** and
+**sessions**. Passkeys, access (roles, memberships, invites) and shared devices follow.
 
 | Lib           | Runs on              | What it holds                                                           |
 | ------------- | -------------------- | ----------------------------------------------------------------------- |
@@ -17,6 +18,8 @@ passkeys, access (roles, memberships, invites) and shared devices follow.
 const accounts = createAccounts({
   users: new PgUserRepository(tables),
   otps: new PgOtpRepository(tables),
+  sessions: new PgSessionRepository(tables),
+  passwordAttempts: new PgPasswordAttemptsRepository(tables),
   unitOfWork: createPgIdentityUnitOfWork(database),
   passwordHasher: createArgon2idPasswordHasher(),
   otpCodec: createHmacOtpCodec(secretFromConfiguration),
@@ -30,8 +33,20 @@ const { userId, codeSent } = await accounts.signUp({ name, phone, email, passwor
 await accounts.verifyCode({ identifier: phone, code });
 ```
 
-Use cases: `signUp`, `verifyCode`, `resendCode`, `requestPasswordReset`, `resetPassword`,
-`changePassword`. None runs offline.
+Account use cases: `signUp`, `verifyCode`, `resendCode`, `requestPasswordReset`, `resetPassword`,
+`changePassword`.
+
+`createSessions` takes the same options plus `tokenCodec: createNodeTokenCodec()`. Session use
+cases: `signInWithPassword`, `requestSignInCode`, `signInWithCode`, `refresh`, `authenticate`,
+`signOut`, `signOutEverywhere`, `listSessions`.
+
+```ts
+const tokens = await sessions.signInWithPassword({ identifier: phone, password });
+const who = await sessions.authenticate({ accessToken: tokens.accessToken });
+const next = await sessions.refresh({ refreshToken: tokens.refreshToken });
+```
+
+None of the use cases runs offline.
 
 ## Rules worth knowing before changing anything
 
@@ -39,15 +54,19 @@ Use cases: `signUp`, `verifyCode`, `resendCode`, `requestPasswordReset`, `resetP
   They are listed in `IDENTITY_GLOBAL_TABLES`. Do not add a table to that list to quiet the tenancy
   check.
 - **A wrong code is counted in a transaction that commits**, and the error is raised after it. Do
-  not move the `throw` inside the unit of work.
+  not move the `throw` inside the unit of work. The same holds for ending a session on reuse of a
+  refresh token, and for counting a password attempt.
+- **A password attempt is counted before the password is checked.** Do not reorder them.
+- **Tokens are returned once and never stored.** Only their SHA-256 is.
 - **Nothing here may put a phone number, an email, a code or a password in an error or a log.**
   Use `maskIdentifier`.
 - **Codes and passwords are never stored.** Codes are stored as a keyed hash, passwords as Argon2id.
-- A new adapter for `UserRepository` or `OtpRepository` must pass `userRepositoryConformance` and
-  `otpRepositoryConformance`.
+- A new adapter for a repository must pass its conformance suite: `userRepositoryConformance`,
+  `otpRepositoryConformance`, `sessionRepositoryConformance`, `passwordAttemptsConformance`.
 
 ## Testing
 
-`insecureTestPasswordHasher` and `createTestOtpCodec` are instant stand-ins for tests only.
+`insecureTestPasswordHasher`, `createTestOtpCodec` and `createTestTokenCodec` are instant
+stand-ins for tests only.
 `createInMemoryIdentityStore` gives repositories with a unit of work that rolls back on failure,
 like a database. The `infra-pg` tests need PostgreSQL (`pnpm infra:up`).

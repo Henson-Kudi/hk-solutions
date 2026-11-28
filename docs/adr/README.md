@@ -21,6 +21,7 @@ these before proposing a change to how the repo is structured.
 | [0014](./0014-file-storage.md)                                     | File storage                                                       | Accepted                  |
 | [0015](./0015-comms-ports.md)                                      | Messaging ports for email, SMS and WhatsApp                        | Accepted                  |
 | [0016](./0016-identity-accounts.md)                                | Identity accounts, one-time codes and passwords                    | Accepted                  |
+| [0017](./0017-identity-sessions.md)                                | Sessions, token rotation and password lockout                      | Accepted                  |
 
 ## Adding one
 

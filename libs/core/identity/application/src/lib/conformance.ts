@@ -1,7 +1,11 @@
 import {
   IDENTITY_ERRORS,
+  NO_PASSWORD_ATTEMPTS,
   type Identifier,
   type OtpChallenge,
+  type PasswordAttempts,
+  type Session,
+  type SessionTokenPair,
 } from '@hk/core/identity/domain';
 import {
   ConformanceFailure,
@@ -10,11 +14,17 @@ import {
   type ConformanceCase,
 } from '@hk/platform/test-kit';
 import { isDomainError } from '@hk/platform/universal';
-import type { NewUser, OtpRepository, UserRepository } from './ports';
+import type {
+  NewUser,
+  OtpRepository,
+  PasswordAttemptsRepository,
+  SessionRepository,
+  UserRepository,
+} from './ports';
 
 /**
- * What every UserRepository and OtpRepository must do. Each adapter's test
- * file runs these against itself. Every case starts with empty storage.
+ * What every identity repository must do. Each adapter's test file runs
+ * these against itself. Every case starts with empty storage.
  */
 
 /** Runs repository calls as the adapter needs them: in a transaction on PostgreSQL. */
@@ -548,6 +558,451 @@ export const otpRepositoryConformance: readonly OtpCase[] = [
       if (all.some((time) => typeof time !== 'string')) {
         throw new ConformanceFailure('sent times must be ISO strings');
       }
+    },
+  },
+];
+
+// ── SessionRepository ───────────────────────────────────────────────────────
+
+export interface SessionRepositorySubject {
+  sessions: SessionRepository;
+  within: Within;
+  /**
+   * Makes sure a user with this id exists, for adapters whose storage ties
+   * a session to its user. Others do nothing.
+   */
+  ensureUser: (userId: string) => Promise<void>;
+}
+
+type SessionCase = ConformanceCase<SessionRepositorySubject>;
+
+const USER_A = id(0xa1);
+const USER_B = id(0xa2);
+
+const minutes = (n: number): string =>
+  new Date(Date.parse(T0) + n * 60_000).toISOString();
+
+const sessionOf = (n: number, overrides: Partial<Session> = {}): Session => ({
+  id: id(0x2000 + n),
+  userId: USER_A,
+  method: 'password',
+  deviceName: `Device ${n}`,
+  createdAt: minutes(n),
+  lastUsedAt: minutes(n),
+  revokedAt: null,
+  revokeReason: null,
+  ...overrides,
+});
+
+const pairOf = (
+  n: number,
+  session: Session,
+  overrides: Partial<SessionTokenPair> = {},
+): SessionTokenPair => ({
+  id: id(0x3000 + n),
+  sessionId: session.id,
+  parentId: null,
+  accessHash: `access-hash-${n}`,
+  refreshHash: `refresh-hash-${n}`,
+  issuedAt: minutes(n),
+  accessExpiresAt: minutes(n + 15),
+  refreshExpiresAt: minutes(n + 43_200),
+  rotatedAt: null,
+  ...overrides,
+});
+
+/** Stores a session with its first pair, creating its user when needed. */
+const store = async (
+  { sessions, within, ensureUser }: SessionRepositorySubject,
+  session: Session,
+  pair: SessionTokenPair,
+): Promise<void> => {
+  await ensureUser(session.userId);
+  await within(() => sessions.create(session, pair));
+};
+
+export const sessionRepositoryConformance: readonly SessionCase[] = [
+  {
+    name: 'a stored session is found by its id and by either token hash, exactly',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1, { method: 'otp', deviceName: null });
+      const pair = pairOf(1, session);
+      await store(subject, session, pair);
+      expectEqual(
+        await within(() => sessions.findById(session.id)),
+        session,
+        'by id',
+      );
+      const byRefresh = await within(() =>
+        sessions.findByRefreshHash(pair.refreshHash),
+      );
+      expectEqual(byRefresh?.session, session, 'by refresh hash: the session');
+      expectEqual(byRefresh?.pair, pair, 'by refresh hash: the pair');
+      const byAccess = await within(() =>
+        sessions.findByAccessHash(pair.accessHash),
+      );
+      expectEqual(byAccess?.session, session, 'by access hash: the session');
+      expectEqual(byAccess?.pair, pair, 'by access hash: the pair');
+    },
+  },
+  {
+    name: 'an unknown id or hash gives null, and the two kinds of hash are not mixed',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      const pair = pairOf(1, session);
+      await store(subject, session, pair);
+      expectEqual(await within(() => sessions.findById(id(404))), null, 'id');
+      expectEqual(
+        await within(() => sessions.findByRefreshHash('nothing')),
+        null,
+        'unknown refresh hash',
+      );
+      expectEqual(
+        await within(() => sessions.findByAccessHash('nothing')),
+        null,
+        'unknown access hash',
+      );
+      expectEqual(
+        await within(() => sessions.findByRefreshHash(pair.accessHash)),
+        null,
+        'an access hash asked for as a refresh hash',
+      );
+      expectEqual(
+        await within(() => sessions.findByAccessHash(pair.refreshHash)),
+        null,
+        'a refresh hash asked for as an access hash',
+      );
+    },
+  },
+  {
+    name: 'a pair added later is found, and is the successor of the one it replaced',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      const first = pairOf(1, session);
+      const second = pairOf(2, session, { parentId: first.id });
+      await store(subject, session, first);
+      expectEqual(
+        await within(() => sessions.findSuccessor(first.id)),
+        null,
+        'no successor yet',
+      );
+      await within(() => sessions.addPair(second));
+      expectEqual(
+        await within(() => sessions.findSuccessor(first.id)),
+        second,
+        'the successor',
+      );
+      const found = await within(() =>
+        sessions.findByRefreshHash(second.refreshHash),
+      );
+      expectEqual(found?.pair, second, 'the added pair');
+      expectEqual(found?.session, session, 'the added pair’s session');
+      expectEqual(
+        await within(() => sessions.findSuccessor(second.id)),
+        null,
+        'the newest pair has no successor',
+      );
+    },
+  },
+  {
+    name: 'of two pairs that replaced the same one, the newer is the successor',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      const first = pairOf(1, session);
+      await store(subject, session, first);
+      await within(() =>
+        sessions.addPair(pairOf(2, session, { parentId: first.id })),
+      );
+      await within(() =>
+        sessions.addPair(pairOf(3, session, { parentId: first.id })),
+      );
+      const successor = await within(() => sessions.findSuccessor(first.id));
+      expectEqual(successor?.id, pairOf(3, session).id, 'the newer one');
+    },
+  },
+  {
+    name: 'retiring a pair stamps it, and keeps the first time when done again',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      const pair = pairOf(1, session);
+      await store(subject, session, pair);
+      await within(() => sessions.retirePair(pair.id, T1));
+      await within(() => sessions.retirePair(pair.id, minutes(99)));
+      await within(() => sessions.retirePair(id(404), T1));
+      const found = await within(() =>
+        sessions.findByRefreshHash(pair.refreshHash),
+      );
+      expectEqual(found?.pair.rotatedAt, T1, 'rotatedAt');
+    },
+  },
+  {
+    name: 'touching a session moves its last-used time only',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      await store(subject, session, pairOf(1, session));
+      await within(() => sessions.touch(session.id, T1));
+      await within(() => sessions.touch(id(404), T1));
+      expectEqual(
+        await within(() => sessions.findById(session.id)),
+        { ...session, lastUsedAt: T1 },
+        'the session',
+      );
+    },
+  },
+  {
+    name: 'a session is revoked once: the first time and reason are kept',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const session = sessionOf(1);
+      await store(subject, session, pairOf(1, session));
+      expectEqual(
+        await within(() => sessions.revoke(session.id, T1, 'reuse_detected')),
+        true,
+        'the first revoke',
+      );
+      expectEqual(
+        await within(() =>
+          sessions.revoke(session.id, minutes(99), 'signed_out'),
+        ),
+        false,
+        'the second revoke',
+      );
+      expectEqual(
+        await within(() => sessions.revoke(id(404), T1, 'signed_out')),
+        false,
+        'an unknown session',
+      );
+      expectEqual(
+        await within(() => sessions.findById(session.id)),
+        { ...session, revokedAt: T1, revokeReason: 'reuse_detected' },
+        'the session',
+      );
+    },
+  },
+  {
+    name: 'revoking all of a user’s sessions spares the excepted one and other users',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const mine = [sessionOf(1), sessionOf(2), sessionOf(3), sessionOf(4)];
+      const theirs = sessionOf(5, { userId: USER_B });
+      for (const [index, session] of [...mine, theirs].entries()) {
+        await store(subject, session, pairOf(index + 1, session));
+      }
+      // One is over already and must not be counted or re-stamped.
+      await within(() =>
+        sessions.revoke(sessionOf(4).id, minutes(50), 'signed_out'),
+      );
+
+      const ended = await within(() =>
+        sessions.revokeAllForUser(
+          USER_A,
+          T1,
+          'password_changed',
+          sessionOf(2).id,
+        ),
+      );
+      expectEqual(ended, 2, 'how many were ended');
+
+      const after = async (session: Session) => {
+        const found = await within(() => sessions.findById(session.id));
+        return [found?.revokedAt ?? null, found?.revokeReason ?? null];
+      };
+      expectEqual(await after(sessionOf(1)), [T1, 'password_changed'], 'first');
+      expectEqual(await after(sessionOf(2)), [null, null], 'the excepted one');
+      expectEqual(await after(sessionOf(3)), [T1, 'password_changed'], 'third');
+      expectEqual(
+        await after(sessionOf(4)),
+        [minutes(50), 'signed_out'],
+        'the one already over',
+      );
+      expectEqual(await after(theirs), [null, null], 'another user’s');
+
+      expectEqual(
+        await within(() =>
+          sessions.revokeAllForUser(USER_A, T1, 'signed_out_everywhere'),
+        ),
+        1,
+        'with no exception, the last one goes too',
+      );
+      expectEqual(
+        await within(() =>
+          sessions.revokeAllForUser(id(404), T1, 'signed_out_everywhere'),
+        ),
+        0,
+        'a user with no sessions',
+      );
+    },
+  },
+  {
+    name: 'live sessions are the usable ones of that user, most recently used first',
+    run: async (subject) => {
+      const { sessions, within } = subject;
+      const older = sessionOf(1);
+      const newer = sessionOf(2);
+      const revoked = sessionOf(3);
+      const expired = sessionOf(4);
+      const rotatedOnly = sessionOf(5);
+      const theirs = sessionOf(6, { userId: USER_B });
+      await store(subject, older, pairOf(1, older));
+      await store(subject, newer, pairOf(2, newer));
+      await store(subject, revoked, pairOf(3, revoked));
+      await store(
+        subject,
+        expired,
+        pairOf(4, expired, { refreshExpiresAt: minutes(60) }),
+      );
+      // Its only pair was killed and never replaced: nothing can use it.
+      await store(subject, rotatedOnly, pairOf(5, rotatedOnly));
+      await store(subject, theirs, pairOf(6, theirs));
+      await within(() => sessions.revoke(revoked.id, T1, 'signed_out'));
+      await within(() =>
+        sessions.retirePair(pairOf(5, rotatedOnly).id, minutes(30)),
+      );
+
+      const at = minutes(120);
+      const listed = await within(() => sessions.listLiveForUser(USER_A, at));
+      expectEqual(
+        listed.map((session) => session.id),
+        [newer.id, older.id],
+        'the live sessions, newest use first',
+      );
+      expectEqual(listed[0], newer, 'a listed session is the whole session');
+
+      // Using the older one moves it to the front.
+      await within(() => sessions.touch(older.id, minutes(100)));
+      const again = await within(() => sessions.listLiveForUser(USER_A, at));
+      expectEqual(
+        again.map((session) => session.id),
+        [older.id, newer.id],
+        'after the older one is used',
+      );
+
+      // A refresh token is dead AT its expiry instant.
+      const edge = await within(() =>
+        sessions.listLiveForUser(USER_A, minutes(60)),
+      );
+      expectTrue(
+        !edge.some((session) => session.id === expired.id),
+        'a session whose refresh token expires now is not live',
+      );
+      const before = await within(() =>
+        sessions.listLiveForUser(USER_A, minutes(59)),
+      );
+      expectTrue(
+        before.some((session) => session.id === expired.id),
+        'a minute earlier it still is',
+      );
+      expectEqual(
+        await within(() => sessions.listLiveForUser(id(404), at)),
+        [],
+        'a user with no sessions',
+      );
+    },
+  },
+];
+
+// ── PasswordAttemptsRepository ──────────────────────────────────────────────
+
+export interface PasswordAttemptsSubject {
+  passwordAttempts: PasswordAttemptsRepository;
+  within: Within;
+  /** As for sessions: makes sure the user exists where storage needs it. */
+  ensureUser: (userId: string) => Promise<void>;
+}
+
+type AttemptsCase = ConformanceCase<PasswordAttemptsSubject>;
+
+const counted: PasswordAttempts = {
+  count: 3,
+  lastAttemptAt: T0,
+  lockedUntil: null,
+};
+const locked: PasswordAttempts = {
+  count: 10,
+  lastAttemptAt: T1,
+  lockedUntil: minutes(65),
+};
+
+export const passwordAttemptsConformance: readonly AttemptsCase[] = [
+  {
+    name: 'a user with no count reads as no attempts',
+    run: async ({ passwordAttempts, within, ensureUser }) => {
+      await ensureUser(USER_A);
+      expectEqual(
+        await within(() => passwordAttempts.read(USER_A)),
+        NO_PASSWORD_ATTEMPTS,
+        'a known user',
+      );
+      expectEqual(
+        await within(() => passwordAttempts.read(id(404))),
+        NO_PASSWORD_ATTEMPTS,
+        'an unknown user',
+      );
+    },
+  },
+  {
+    name: 'a saved count is read back exactly, and saving again replaces it',
+    run: async ({ passwordAttempts, within, ensureUser }) => {
+      await ensureUser(USER_A);
+      await within(() => passwordAttempts.save(USER_A, counted));
+      expectEqual(
+        await within(() => passwordAttempts.read(USER_A)),
+        counted,
+        'the first save',
+      );
+      await within(() => passwordAttempts.save(USER_A, locked));
+      expectEqual(
+        await within(() => passwordAttempts.read(USER_A)),
+        locked,
+        'the second save',
+      );
+    },
+  },
+  {
+    name: 'a count can be read and saved in one unit of work',
+    run: async ({ passwordAttempts, within, ensureUser }) => {
+      await ensureUser(USER_A);
+      await within(async () => {
+        const before = await passwordAttempts.read(USER_A);
+        await passwordAttempts.save(USER_A, {
+          ...counted,
+          count: before.count + 1,
+        });
+        const during = await passwordAttempts.read(USER_A);
+        await passwordAttempts.save(USER_A, {
+          ...counted,
+          count: during.count + 1,
+        });
+      });
+      const after = await within(() => passwordAttempts.read(USER_A));
+      expectEqual(after.count, 2, 'the count');
+    },
+  },
+  {
+    name: 'clearing forgets one user’s count and no other',
+    run: async ({ passwordAttempts, within, ensureUser }) => {
+      await ensureUser(USER_A);
+      await ensureUser(USER_B);
+      await within(() => passwordAttempts.save(USER_A, locked));
+      await within(() => passwordAttempts.save(USER_B, counted));
+      await within(() => passwordAttempts.clear(USER_A));
+      await within(() => passwordAttempts.clear(id(404)));
+      expectEqual(
+        await within(() => passwordAttempts.read(USER_A)),
+        NO_PASSWORD_ATTEMPTS,
+        'the cleared user',
+      );
+      expectEqual(
+        await within(() => passwordAttempts.read(USER_B)),
+        counted,
+        'the other user',
+      );
     },
   },
 ];
