@@ -27,6 +27,7 @@ import {
   type FieldDef,
   type TaxCodeDef,
 } from './country-pack';
+import { isSystemRole } from './system-roles';
 import {
   findRateTableIssues,
   findSourceNoteIssues,
@@ -344,8 +345,13 @@ export const findPackIssues = (pack: CountryPack): PackIssue[] => {
         report('chart', `${which}: currency is not a currency code`);
       }
       if (account.systemRole !== undefined) {
-        if (!DOTTED.test(String(account.systemRole))) {
-          report('chart', `${which}: role is not a dotted name`);
+        // Every pack uses the same role names, or a product could not post
+        // in every country.
+        if (!isSystemRole(account.systemRole)) {
+          report(
+            'chart',
+            `${which}: "${String(account.systemRole)}" is not a registered system role`,
+          );
         }
         // Posting rules post to the account holding a role, and only a leaf
         // can be posted to.

@@ -128,9 +128,10 @@ export const BRANCH_POLICIES = [
 export type BranchPolicy = (typeof BRANCH_POLICIES)[number];
 
 /**
- * A stable name for what an account is for: "ar.trade",
- * "vat.output.standard". Posting rules name roles, never account codes, so a
- * business can renumber its chart without breaking postings.
+ * A stable name for what an account is for: "ar.trade", "vat.output".
+ * Posting rules name roles, never account codes, so a business can renumber
+ * its chart without breaking postings. The names a pack may use are in
+ * SYSTEM_ROLES (system-roles.ts).
  */
 export type SystemRole = string;
 

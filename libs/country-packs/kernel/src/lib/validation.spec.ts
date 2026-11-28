@@ -10,6 +10,7 @@ import {
   productAvailability,
 } from './country-pack';
 import { createRateTable, type SourceNote } from './effective-dated';
+import { SYSTEM_ROLES, isSystemRole } from './system-roles';
 import {
   PACK_AREAS,
   findPackIssues,
@@ -64,6 +65,23 @@ describe('country codes and capability keys', () => {
       .map((feature) => feature.capability)
       .filter((capability) => !isCapabilityKey(capability));
     expect(unknown).toEqual([]);
+  });
+});
+
+describe('system roles', () => {
+  it('are dotted names, each with a description', () => {
+    for (const [role, description] of Object.entries(SYSTEM_ROLES)) {
+      expect(role).toMatch(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/);
+      expect(description.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('recognises a registered role and nothing else', () => {
+    expect(isSystemRole('ar.trade')).toBe(true);
+    expect(isSystemRole('customer_advances')).toBe(true);
+    expect(isSystemRole('ar.other')).toBe(false);
+    expect(isSystemRole('toString')).toBe(false);
+    expect(isSystemRole(undefined)).toBe(false);
   });
 });
 
@@ -381,6 +399,14 @@ describe('findPackIssues', () => {
       'account "44" holds a role but has sub-accounts',
     ],
     [
+      'a role that is not in the shared list',
+      (d) => {
+        account(d, '57').systemRole = 'cash.petty';
+      },
+      'chart',
+      'account "57": "cash.petty" is not a registered system role',
+    ],
+    [
       'a branch policy that does not exist',
       (d) => {
         (account(d, '57') as { branchPolicy: string }).branchPolicy = 'SHARED';
@@ -406,7 +432,7 @@ describe('findPackIssues', () => {
         });
       },
       'chart',
-      'requiredRoles.sales: no account holds "income.sales" in every template',
+      'requiredRoles.sales: no account holds "income.sales.goods" in every template',
     ],
     [
       'required roles for something that is not a product',
@@ -419,7 +445,7 @@ describe('findPackIssues', () => {
     [
       'no core roles',
       (d) => {
-        d.chart.requiredRoles = { sales: ['income.sales'] };
+        d.chart.requiredRoles = { sales: ['income.sales.goods'] };
       },
       'chart',
       'requiredRoles.core is empty',

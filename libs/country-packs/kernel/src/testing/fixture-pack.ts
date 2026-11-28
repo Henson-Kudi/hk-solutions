@@ -79,7 +79,7 @@ export const fixtureCodes = (): TaxCodeDef[] => [
         rate: createRateTable('fixture.duo.surcharge', [
           { effectiveFrom: '2010-01-01', value: '0.015', source },
         ]),
-        outputRole: 'vat.surcharge.output',
+        outputRole: 'vat.payable',
         inputRole: 'vat.input',
       },
     ],
@@ -238,7 +238,7 @@ export const createFixturePack = (): CountryPack => {
       codePattern: /^[1-9]\d+$/,
       requiredRoles: {
         core: ['ar.trade', 'cash.main'],
-        sales: ['income.sales', 'vat.output'],
+        sales: ['income.sales.goods', 'vat.output'],
       },
       templates: [
         {
@@ -282,7 +282,7 @@ export const createFixturePack = (): CountryPack => {
               type: 'LIABILITY',
               subtype: 'VAT_OUTPUT',
               parentCode: '44',
-              systemRole: 'vat.surcharge.output',
+              systemRole: 'vat.payable',
             },
             {
               code: '445',
@@ -305,7 +305,7 @@ export const createFixturePack = (): CountryPack => {
               name: text('Sales'),
               type: 'INCOME',
               subtype: 'SALES',
-              systemRole: 'income.sales',
+              systemRole: 'income.sales.goods',
             },
           ],
         },
@@ -323,7 +323,7 @@ export const createFixturePack = (): CountryPack => {
         {
           eventType: 'sales.invoice.issued',
           lineKind: 'line.revenue',
-          role: 'income.sales',
+          role: 'income.sales.goods',
           side: 'credit',
           dimensions: ['branch', 'project'],
         },
@@ -390,7 +390,7 @@ export const fixtureManifest = (
   produces: ['sales.invoice.issued'],
   permissions: [],
   schema: 'sales',
-  requiredSystemRoles: ['income.sales', 'vat.output'],
+  requiredSystemRoles: ['income.sales.goods', 'vat.output'],
   meters: [],
   ...overrides,
 });
