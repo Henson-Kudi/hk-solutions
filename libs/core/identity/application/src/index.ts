@@ -3,5 +3,7 @@ export * from './lib/conformance';
 export * from './lib/in-memory';
 export * from './lib/otp-flow';
 export * from './lib/otp-messages';
+export * from './lib/passkeys';
 export * from './lib/ports';
+export * from './lib/session-starter';
 export * from './lib/sessions';

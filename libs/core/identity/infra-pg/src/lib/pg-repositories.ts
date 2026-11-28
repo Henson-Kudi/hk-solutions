@@ -3,6 +3,8 @@ import type {
   IdentityUnitOfWork,
   NewUser,
   OtpRepository,
+  PasskeyChallengeRepository,
+  PasskeyRepository,
   PasswordAttemptsRepository,
   SessionRepository,
   UserRepository,
@@ -17,6 +19,9 @@ import {
   type IdentifierKind,
   type OtpChallenge,
   type OtpPurpose,
+  type Passkey,
+  type PasskeyCeremony,
+  type PasskeyChallenge,
   type PasswordAttempts,
   type Session,
   type SessionRevokeReason,
@@ -625,6 +630,158 @@ export class PgPasswordAttemptsRepository
     await requireSystemTransaction()
       .delete(passwordAttempts)
       .where(eq(passwordAttempts.userId, userId));
+  }
+}
+
+export class PgPasskeyRepository implements PasskeyRepository {
+  constructor(private readonly tables: IdentityTables) {}
+
+  private toPasskey(row: IdentityTables['passkeys']['$inferSelect']): Passkey {
+    return {
+      id: row.id,
+      userId: row.userId,
+      credentialId: row.credentialId,
+      publicKey: row.publicKey,
+      signCount: row.signCount,
+      transports: row.transports,
+      multiDevice: row.multiDevice,
+      backedUp: row.backedUp,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+      lastUsedAt: iso(row.lastUsedAt),
+    };
+  }
+
+  async create(passkey: Passkey): Promise<void> {
+    const { passkeys } = this.tables;
+    const rows = await requireSystemTransaction()
+      .insert(passkeys)
+      .values({
+        id: passkey.id,
+        userId: passkey.userId,
+        credentialId: passkey.credentialId,
+        publicKey: passkey.publicKey,
+        signCount: passkey.signCount,
+        transports: [...passkey.transports],
+        multiDevice: passkey.multiDevice,
+        backedUp: passkey.backedUp,
+        name: passkey.name,
+        createdAt: new Date(passkey.createdAt),
+        lastUsedAt:
+          passkey.lastUsedAt === null ? null : new Date(passkey.lastUsedAt),
+      })
+      // The unique index decides, so two registrations of one credential at
+      // the same moment cannot both succeed.
+      .onConflictDoNothing({ target: passkeys.credentialId })
+      .returning({ id: passkeys.id });
+    if (rows.length === 0) {
+      throw new DomainError(
+        IDENTITY_ERRORS.PASSKEY_ALREADY_REGISTERED,
+        'This passkey is already registered.',
+        { kind: 'conflict' },
+      );
+    }
+  }
+
+  async findByCredentialId(credentialId: string): Promise<Passkey | null> {
+    const { passkeys } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select()
+      .from(passkeys)
+      .where(eq(passkeys.credentialId, credentialId))
+      .limit(1)
+      // Locked until the transaction ends: two uses of one passkey have
+      // their counts judged one after the other.
+      .for('update');
+    return rows[0] ? this.toPasskey(rows[0]) : null;
+  }
+
+  async listForUser(userId: string): Promise<Passkey[]> {
+    const { passkeys } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select()
+      .from(passkeys)
+      .where(eq(passkeys.userId, userId))
+      .orderBy(asc(passkeys.createdAt), asc(passkeys.id));
+    return rows.map((row) => this.toPasskey(row));
+  }
+
+  async recordUse(
+    passkeyId: string,
+    use: { signCount: number; backedUp: boolean; at: string },
+  ): Promise<void> {
+    const { passkeys } = this.tables;
+    await requireSystemTransaction()
+      .update(passkeys)
+      .set({
+        signCount: use.signCount,
+        backedUp: use.backedUp,
+        lastUsedAt: new Date(use.at),
+      })
+      .where(eq(passkeys.id, passkeyId));
+  }
+
+  async rename(
+    userId: string,
+    passkeyId: string,
+    name: string,
+  ): Promise<boolean> {
+    const { passkeys } = this.tables;
+    const rows = await requireSystemTransaction()
+      .update(passkeys)
+      .set({ name })
+      .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, userId)))
+      .returning({ id: passkeys.id });
+    return rows.length > 0;
+  }
+
+  async remove(userId: string, passkeyId: string): Promise<boolean> {
+    const { passkeys } = this.tables;
+    const rows = await requireSystemTransaction()
+      .delete(passkeys)
+      .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, userId)))
+      .returning({ id: passkeys.id });
+    return rows.length > 0;
+  }
+}
+
+export class PgPasskeyChallengeRepository
+  implements PasskeyChallengeRepository
+{
+  constructor(private readonly tables: IdentityTables) {}
+
+  async create(challenge: PasskeyChallenge): Promise<void> {
+    await requireSystemTransaction()
+      .insert(this.tables.passkeyChallenges)
+      .values({
+        id: challenge.id,
+        ceremony: challenge.ceremony,
+        userId: challenge.userId,
+        challenge: challenge.challenge,
+        createdAt: new Date(challenge.createdAt),
+        expiresAt: new Date(challenge.expiresAt),
+      });
+  }
+
+  async take(challengeId: string): Promise<PasskeyChallenge | null> {
+    const { passkeyChallenges } = this.tables;
+    // One statement removes the row and returns it. Of two takes at the
+    // same moment, the database gives the row to one of them only.
+    const rows = await requireSystemTransaction()
+      .delete(passkeyChallenges)
+      .where(eq(passkeyChallenges.id, challengeId))
+      .returning();
+    const row = rows[0];
+    return row
+      ? {
+          id: row.id,
+          ceremony: row.ceremony as PasskeyCeremony,
+          userId: row.userId,
+          challenge: row.challenge,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+        }
+      : null;
   }
 }
 

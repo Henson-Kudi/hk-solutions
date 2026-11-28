@@ -3,6 +3,8 @@ import {
   NO_PASSWORD_ATTEMPTS,
   type Identifier,
   type OtpChallenge,
+  type Passkey,
+  type PasskeyChallenge,
   type PasswordAttempts,
   type Session,
   type SessionTokenPair,
@@ -17,6 +19,8 @@ import { isDomainError } from '@hk/platform/universal';
 import type {
   NewUser,
   OtpRepository,
+  PasskeyChallengeRepository,
+  PasskeyRepository,
   PasswordAttemptsRepository,
   SessionRepository,
   UserRepository,
@@ -1002,6 +1006,297 @@ export const passwordAttemptsConformance: readonly AttemptsCase[] = [
         await within(() => passwordAttempts.read(USER_B)),
         counted,
         'the other user',
+      );
+    },
+  },
+];
+
+// ── PasskeyRepository ───────────────────────────────────────────────────────
+
+export interface PasskeyRepositorySubject {
+  passkeys: PasskeyRepository;
+  within: Within;
+  /** As for sessions: makes sure the user exists where storage needs it. */
+  ensureUser: (userId: string) => Promise<void>;
+}
+
+type PasskeyCase = ConformanceCase<PasskeyRepositorySubject>;
+
+const passkeyOf = (n: number, overrides: Partial<Passkey> = {}): Passkey => ({
+  id: id(0x4000 + n),
+  userId: USER_A,
+  credentialId: `credential-${n}`,
+  publicKey: `cHVibGljLWtleS0${n}`,
+  signCount: 0,
+  transports: ['internal', 'hybrid'],
+  multiDevice: true,
+  backedUp: true,
+  name: `Passkey ${n}`,
+  createdAt: minutes(n),
+  lastUsedAt: null,
+  ...overrides,
+});
+
+const keep = async (
+  { passkeys, within, ensureUser }: PasskeyRepositorySubject,
+  passkey: Passkey,
+): Promise<void> => {
+  await ensureUser(passkey.userId);
+  await within(() => passkeys.create(passkey));
+};
+
+export const passkeyRepositoryConformance: readonly PasskeyCase[] = [
+  {
+    name: 'a stored passkey is found by its credential id, exactly',
+    run: async (subject) => {
+      const { passkeys, within } = subject;
+      const stored = passkeyOf(1, {
+        signCount: 7,
+        transports: [],
+        multiDevice: false,
+        backedUp: false,
+        lastUsedAt: T1,
+      });
+      await keep(subject, stored);
+      expectEqual(
+        await within(() => passkeys.findByCredentialId(stored.credentialId)),
+        stored,
+        'the passkey read back',
+      );
+      expectEqual(
+        await within(() => passkeys.findByCredentialId('unknown')),
+        null,
+        'an unknown credential id',
+      );
+    },
+  },
+  {
+    name: 'a credential id can be stored once, whoever the user',
+    run: async (subject) => {
+      const { passkeys, within, ensureUser } = subject;
+      await keep(subject, passkeyOf(1));
+      await ensureUser(USER_B);
+      for (const [what, duplicate] of [
+        ['the same user', passkeyOf(2, { credentialId: 'credential-1' })],
+        [
+          'another user',
+          passkeyOf(3, { credentialId: 'credential-1', userId: USER_B }),
+        ],
+      ] as const) {
+        expectEqual(
+          await rejectionCode(() => within(() => passkeys.create(duplicate))),
+          IDENTITY_ERRORS.PASSKEY_ALREADY_REGISTERED,
+          what,
+        );
+      }
+      const holder = await within(() =>
+        passkeys.findByCredentialId('credential-1'),
+      );
+      expectEqual(holder?.id, passkeyOf(1).id, 'the first one is untouched');
+    },
+  },
+  {
+    name: 'a user’s passkeys are listed oldest first, and nobody else’s',
+    run: async (subject) => {
+      const { passkeys, within } = subject;
+      await keep(subject, passkeyOf(3));
+      await keep(subject, passkeyOf(1));
+      await keep(subject, passkeyOf(2));
+      await keep(subject, passkeyOf(4, { userId: USER_B }));
+      const listed = await within(() => passkeys.listForUser(USER_A));
+      expectEqual(
+        listed.map((passkey) => passkey.id),
+        [passkeyOf(1).id, passkeyOf(2).id, passkeyOf(3).id],
+        'the order',
+      );
+      expectEqual(listed[0], passkeyOf(1), 'a listed passkey is whole');
+      expectEqual(
+        await within(() => passkeys.listForUser(id(404))),
+        [],
+        'a user with none',
+      );
+    },
+  },
+  {
+    name: 'a use is recorded: the count, the backup state and the time',
+    run: async (subject) => {
+      const { passkeys, within } = subject;
+      await keep(subject, passkeyOf(1));
+      await keep(subject, passkeyOf(2));
+      await within(() =>
+        passkeys.recordUse(passkeyOf(1).id, {
+          signCount: 12,
+          backedUp: false,
+          at: T1,
+        }),
+      );
+      await within(() =>
+        passkeys.recordUse(id(404), { signCount: 1, backedUp: true, at: T1 }),
+      );
+      expectEqual(
+        await within(() => passkeys.findByCredentialId('credential-1')),
+        { ...passkeyOf(1), signCount: 12, backedUp: false, lastUsedAt: T1 },
+        'the used passkey',
+      );
+      expectEqual(
+        await within(() => passkeys.findByCredentialId('credential-2')),
+        passkeyOf(2),
+        'another passkey is untouched',
+      );
+    },
+  },
+  {
+    name: 'a passkey is renamed by its owner only',
+    run: async (subject) => {
+      const { passkeys, within, ensureUser } = subject;
+      await keep(subject, passkeyOf(1));
+      await ensureUser(USER_B);
+      expectEqual(
+        await within(() => passkeys.rename(USER_B, passkeyOf(1).id, 'Stolen')),
+        false,
+        'by another user',
+      );
+      expectEqual(
+        await within(() => passkeys.rename(USER_A, id(404), 'Nothing')),
+        false,
+        'an unknown passkey',
+      );
+      expectEqual(
+        await within(() =>
+          passkeys.rename(USER_A, passkeyOf(1).id, 'Work key'),
+        ),
+        true,
+        'by its owner',
+      );
+      const after = await within(() =>
+        passkeys.findByCredentialId('credential-1'),
+      );
+      expectEqual(after, { ...passkeyOf(1), name: 'Work key' }, 'the passkey');
+    },
+  },
+  {
+    name: 'a passkey is removed by its owner only, and its credential id is free again',
+    run: async (subject) => {
+      const { passkeys, within, ensureUser } = subject;
+      await keep(subject, passkeyOf(1));
+      await keep(subject, passkeyOf(2));
+      await ensureUser(USER_B);
+      expectEqual(
+        await within(() => passkeys.remove(USER_B, passkeyOf(1).id)),
+        false,
+        'by another user',
+      );
+      expectEqual(
+        await within(() => passkeys.remove(USER_A, passkeyOf(1).id)),
+        true,
+        'by its owner',
+      );
+      expectEqual(
+        await within(() => passkeys.remove(USER_A, passkeyOf(1).id)),
+        false,
+        'a second time',
+      );
+      const left = await within(() => passkeys.listForUser(USER_A));
+      expectEqual(
+        left.map((passkey) => passkey.id),
+        [passkeyOf(2).id],
+        'what is left',
+      );
+      await within(() =>
+        passkeys.create(passkeyOf(3, { credentialId: 'credential-1' })),
+      );
+      const again = await within(() =>
+        passkeys.findByCredentialId('credential-1'),
+      );
+      expectEqual(again?.id, passkeyOf(3).id, 'registered again');
+    },
+  },
+];
+
+// ── PasskeyChallengeRepository ──────────────────────────────────────────────
+
+export interface PasskeyChallengeSubject {
+  passkeyChallenges: PasskeyChallengeRepository;
+  within: Within;
+}
+
+type ChallengeCase = ConformanceCase<PasskeyChallengeSubject>;
+
+const challengeOf = (
+  n: number,
+  overrides: Partial<PasskeyChallenge> = {},
+): PasskeyChallenge => ({
+  id: id(0x5000 + n),
+  ceremony: 'authentication',
+  userId: null,
+  challenge: `Y2hhbGxlbmdlLQ${n}`,
+  createdAt: minutes(n),
+  expiresAt: minutes(n + 5),
+  ...overrides,
+});
+
+export const passkeyChallengeConformance: readonly ChallengeCase[] = [
+  {
+    name: 'a stored challenge is taken back exactly, with or without a user',
+    run: async ({ passkeyChallenges, within }) => {
+      const anonymous = challengeOf(1);
+      // The user of a challenge is not checked against stored users: the
+      // use case does that, and a challenge lives five minutes.
+      const owned = challengeOf(2, {
+        ceremony: 'registration',
+        userId: USER_A,
+      });
+      await within(() => passkeyChallenges.create(anonymous));
+      await within(() => passkeyChallenges.create(owned));
+      expectEqual(
+        await within(() => passkeyChallenges.take(anonymous.id)),
+        anonymous,
+        'the sign-in challenge',
+      );
+      expectEqual(
+        await within(() => passkeyChallenges.take(owned.id)),
+        owned,
+        'the registration challenge',
+      );
+    },
+  },
+  {
+    name: 'a challenge can be taken once',
+    run: async ({ passkeyChallenges, within }) => {
+      await within(() => passkeyChallenges.create(challengeOf(1)));
+      await within(() => passkeyChallenges.create(challengeOf(2)));
+      const first = await within(() =>
+        passkeyChallenges.take(challengeOf(1).id),
+      );
+      expectEqual(first?.id, challengeOf(1).id, 'the first take');
+      expectEqual(
+        await within(() => passkeyChallenges.take(challengeOf(1).id)),
+        null,
+        'the second take',
+      );
+      expectEqual(
+        await within(() => passkeyChallenges.take(id(404))),
+        null,
+        'an unknown challenge',
+      );
+      const other = await within(() =>
+        passkeyChallenges.take(challengeOf(2).id),
+      );
+      expectEqual(other?.id, challengeOf(2).id, 'another is still there');
+    },
+  },
+  {
+    name: 'a challenge past its time is still returned: judging time is not the store’s job',
+    run: async ({ passkeyChallenges, within }) => {
+      const old = challengeOf(1, {
+        createdAt: '2020-01-01T00:00:00.000Z',
+        expiresAt: '2020-01-01T00:05:00.000Z',
+      });
+      await within(() => passkeyChallenges.create(old));
+      expectEqual(
+        await within(() => passkeyChallenges.take(old.id)),
+        old,
+        'the expired challenge',
       );
     },
   },

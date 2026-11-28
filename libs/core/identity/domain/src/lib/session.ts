@@ -25,8 +25,8 @@ export const SESSION_RULES = {
   deviceNameMaxLength: 100,
 } as const;
 
-/** How the person proved who they are. Passkeys are added with part 3. */
-export const SIGN_IN_METHODS = ['password', 'otp'] as const;
+/** How the person proved who they are. */
+export const SIGN_IN_METHODS = ['password', 'otp', 'passkey'] as const;
 
 export type SignInMethod = (typeof SIGN_IN_METHODS)[number];
 

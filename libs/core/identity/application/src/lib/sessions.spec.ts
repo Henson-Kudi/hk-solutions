@@ -24,12 +24,8 @@ import {
   type InMemoryIdentityStore,
 } from './in-memory';
 import type { PasswordHasher } from './ports';
-import {
-  SESSION_USE_CASES,
-  createSessions,
-  type SessionTokens,
-  type Sessions,
-} from './sessions';
+import type { SessionTokens } from './session-starter';
+import { SESSION_USE_CASES, createSessions, type Sessions } from './sessions';
 
 // Every phone number, address and password in this file is invented.
 

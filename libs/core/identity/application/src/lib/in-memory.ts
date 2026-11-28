@@ -6,6 +6,8 @@ import {
   type Identifier,
   type OtpChallenge,
   type OtpPurpose,
+  type Passkey,
+  type PasskeyChallenge,
   type PasswordAttempts,
   type Session,
   type SessionRevokeReason,
@@ -20,6 +22,9 @@ import type {
   NewUser,
   OtpCodec,
   OtpRepository,
+  PasskeyChallengeRepository,
+  PasskeyRepository,
+  PasskeyVerifier,
   PasswordAttemptsRepository,
   PasswordHasher,
   SessionRepository,
@@ -432,11 +437,127 @@ export class InMemoryPasswordAttemptsRepository
   }
 }
 
+export class InMemoryPasskeyRepository implements PasskeyRepository {
+  private rows: Passkey[] = [];
+
+  async create(passkey: Passkey): Promise<void> {
+    if (this.rows.some((row) => row.credentialId === passkey.credentialId)) {
+      throw new DomainError(
+        IDENTITY_ERRORS.PASSKEY_ALREADY_REGISTERED,
+        'This passkey is already registered.',
+        { kind: 'conflict' },
+      );
+    }
+    this.rows.push({ ...passkey, transports: [...passkey.transports] });
+  }
+
+  async findByCredentialId(credentialId: string): Promise<Passkey | null> {
+    const row = this.rows.find((item) => item.credentialId === credentialId);
+    return row ? { ...row, transports: [...row.transports] } : null;
+  }
+
+  async listForUser(userId: string): Promise<Passkey[]> {
+    return this.rows
+      .filter((row) => row.userId === userId)
+      .sort((a, b) =>
+        a.createdAt === b.createdAt
+          ? a.id < b.id
+            ? -1
+            : 1
+          : a.createdAt < b.createdAt
+            ? -1
+            : 1,
+      )
+      .map((row) => ({ ...row, transports: [...row.transports] }));
+  }
+
+  async recordUse(
+    passkeyId: string,
+    use: { signCount: number; backedUp: boolean; at: string },
+  ): Promise<void> {
+    this.rows = this.rows.map((row) =>
+      row.id === passkeyId
+        ? {
+            ...row,
+            signCount: use.signCount,
+            backedUp: use.backedUp,
+            lastUsedAt: use.at,
+          }
+        : row,
+    );
+  }
+
+  async rename(
+    userId: string,
+    passkeyId: string,
+    name: string,
+  ): Promise<boolean> {
+    const owned = this.rows.some(
+      (row) => row.id === passkeyId && row.userId === userId,
+    );
+    if (!owned) return false;
+    this.rows = this.rows.map((row) =>
+      row.id === passkeyId ? { ...row, name } : row,
+    );
+    return true;
+  }
+
+  async remove(userId: string, passkeyId: string): Promise<boolean> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter(
+      (row) => !(row.id === passkeyId && row.userId === userId),
+    );
+    return this.rows.length < before;
+  }
+
+  /** A copy of everything held, for the unit of work to restore on failure. */
+  snapshot(): Passkey[] {
+    return [...this.rows];
+  }
+
+  restore(snapshot: Passkey[]): void {
+    this.rows = [...snapshot];
+  }
+}
+
+export class InMemoryPasskeyChallengeRepository
+  implements PasskeyChallengeRepository
+{
+  private rows = new Map<string, PasskeyChallenge>();
+
+  async create(challenge: PasskeyChallenge): Promise<void> {
+    this.rows.set(challenge.id, { ...challenge });
+  }
+
+  async take(challengeId: string): Promise<PasskeyChallenge | null> {
+    const row = this.rows.get(challengeId);
+    if (!row) return null;
+    this.rows.delete(challengeId);
+    return { ...row };
+  }
+
+  /** A copy of everything held, for the unit of work to restore on failure. */
+  snapshot(): Map<string, PasskeyChallenge> {
+    return new Map(this.rows);
+  }
+
+  restore(snapshot: Map<string, PasskeyChallenge>): void {
+    this.rows = new Map(snapshot);
+  }
+
+  /** FOR TESTS: how many challenges are waiting. */
+  size(): number {
+    return this.rows.size;
+  }
+}
+
 export interface InMemoryIdentityStore {
   users: InMemoryUserRepository;
   otps: InMemoryOtpRepository;
   sessions: InMemorySessionRepository;
   passwordAttempts: InMemoryPasswordAttemptsRepository;
+  passkeys: InMemoryPasskeyRepository;
+  passkeyChallenges: InMemoryPasskeyChallengeRepository;
   unitOfWork: IdentityUnitOfWork;
 }
 
@@ -454,6 +575,8 @@ export const createInMemoryIdentityStore = (): InMemoryIdentityStore => {
   const otps = new InMemoryOtpRepository();
   const sessions = new InMemorySessionRepository();
   const passwordAttempts = new InMemoryPasswordAttemptsRepository();
+  const passkeys = new InMemoryPasskeyRepository();
+  const passkeyChallenges = new InMemoryPasskeyChallengeRepository();
   let depth = 0;
   const unitOfWork: IdentityUnitOfWork = {
     run: async (action) => {
@@ -464,6 +587,8 @@ export const createInMemoryIdentityStore = (): InMemoryIdentityStore => {
         otps: otps.snapshot(),
         sessions: sessions.snapshot(),
         passwordAttempts: passwordAttempts.snapshot(),
+        passkeys: passkeys.snapshot(),
+        passkeyChallenges: passkeyChallenges.snapshot(),
       };
       depth += 1;
       try {
@@ -473,13 +598,23 @@ export const createInMemoryIdentityStore = (): InMemoryIdentityStore => {
         otps.restore(before.otps);
         sessions.restore(before.sessions);
         passwordAttempts.restore(before.passwordAttempts);
+        passkeys.restore(before.passkeys);
+        passkeyChallenges.restore(before.passkeyChallenges);
         throw error;
       } finally {
         depth -= 1;
       }
     },
   };
-  return { users, otps, sessions, passwordAttempts, unitOfWork };
+  return {
+    users,
+    otps,
+    sessions,
+    passwordAttempts,
+    passkeys,
+    passkeyChallenges,
+    unitOfWork,
+  };
 };
 
 /**
@@ -532,5 +667,208 @@ export const createTestTokenCodec = (): TokenCodec & { issued: string[] } => {
     },
     // Reversed, so a test can check that the token itself is not stored.
     hash: (token) => `hashed:${Array.from(token).reverse().join('')}`,
+  };
+};
+
+// ── A pretend WebAuthn, FOR TESTS ONLY ──────────────────────────────────────
+
+/** The origin and site the fake verifier accepts. */
+export const FAKE_PASSKEY_SITE = {
+  origin: 'https://app.example.test',
+  rpId: 'example.test',
+} as const;
+
+/** What the fake device returns when it registers a passkey. */
+export interface FakeRegistrationResponse {
+  fake: 'registration';
+  credentialId: string;
+  publicKey: string;
+  challenge: string;
+  origin: string;
+  userVerified: boolean;
+  signCount: number;
+  multiDevice: boolean;
+  backedUp: boolean;
+}
+
+/** What the fake device returns when it signs in. */
+export interface FakeAuthenticationResponse {
+  fake: 'authentication';
+  credentialId: string;
+  challenge: string;
+  origin: string;
+  userVerified: boolean;
+  signCount: number;
+  backedUp: boolean;
+  /** Stands in for a signature: only the holder of the "private key" can make it. */
+  signature: string;
+  userId: string | null;
+}
+
+const fakeSignature = (publicKey: string, challenge: string): string =>
+  `signed-with(private-of:${publicKey})-over(${challenge})`;
+
+/**
+ * A stand-in for a person's device, FOR TESTS ONLY. It "holds" one passkey
+ * and answers challenges the way a real authenticator would, minus the
+ * cryptography. Fields are public so a test can make it misbehave.
+ */
+export class FakePasskeyDevice {
+  origin: string = FAKE_PASSKEY_SITE.origin;
+  userVerified = true;
+  signCount = 0;
+  /** True for a device that counts its uses, as security keys do. */
+  counts = false;
+  multiDevice = true;
+  backedUp = true;
+  userId: string | null = null;
+
+  constructor(readonly credentialId: string) {}
+
+  get publicKey(): string {
+    return `public-key-of-${this.credentialId}`;
+  }
+
+  /** Answers a registration challenge. `options` is what the server sent. */
+  register(
+    options: Readonly<Record<string, unknown>>,
+  ): FakeRegistrationResponse {
+    const user = options['user'] as { id?: string } | undefined;
+    this.userId = user?.id ?? null;
+    return {
+      fake: 'registration',
+      credentialId: this.credentialId,
+      publicKey: this.publicKey,
+      challenge: String(options['challenge']),
+      origin: this.origin,
+      userVerified: this.userVerified,
+      signCount: this.signCount,
+      multiDevice: this.multiDevice,
+      backedUp: this.backedUp,
+    };
+  }
+
+  /** Answers a sign-in challenge. */
+  authenticate(
+    options: Readonly<Record<string, unknown>>,
+  ): FakeAuthenticationResponse {
+    if (this.counts) this.signCount += 1;
+    const challenge = String(options['challenge']);
+    return {
+      fake: 'authentication',
+      credentialId: this.credentialId,
+      challenge,
+      origin: this.origin,
+      userVerified: this.userVerified,
+      signCount: this.signCount,
+      backedUp: this.backedUp,
+      signature: fakeSignature(this.publicKey, challenge),
+      userId: this.userId,
+    };
+  }
+}
+
+/**
+ * A stand-in WebAuthn verifier, FOR TESTS ONLY. It applies the same checks
+ * as the real one (challenge, origin, user verification, signature) to the
+ * responses of FakePasskeyDevice. It proves nothing about real passkeys;
+ * the real verifier has its own tests against a software authenticator.
+ */
+export const createFakePasskeyVerifier = (): PasskeyVerifier & {
+  /** How many challenges it has made. */
+  issued: string[];
+} => {
+  const issued: string[] = [];
+  const nextChallenge = (): string => {
+    const challenge = `fake-challenge-${String(issued.length + 1).padStart(4, '0')}`;
+    issued.push(challenge);
+    return challenge;
+  };
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+  return {
+    issued,
+    registrationOptions: async (input) => {
+      const challenge = nextChallenge();
+      return {
+        challenge,
+        options: {
+          challenge,
+          rp: { id: FAKE_PASSKEY_SITE.rpId, name: 'Fake' },
+          user: {
+            id: input.userId,
+            name: input.userName,
+            displayName: input.displayName,
+          },
+          excludeCredentials: input.exclude.map((item) => ({
+            id: item.credentialId,
+            transports: [...item.transports],
+          })),
+          authenticatorSelection: {
+            residentKey: 'required',
+            userVerification: 'required',
+          },
+        },
+      };
+    },
+    verifyRegistration: async ({ response, challenge }) => {
+      if (!isObject(response) || response['fake'] !== 'registration') {
+        return null;
+      }
+      const sent = response as unknown as FakeRegistrationResponse;
+      if (
+        sent.challenge !== challenge ||
+        sent.origin !== FAKE_PASSKEY_SITE.origin ||
+        sent.userVerified !== true ||
+        typeof sent.credentialId !== 'string' ||
+        sent.publicKey !== `public-key-of-${sent.credentialId}`
+      ) {
+        return null;
+      }
+      return {
+        credentialId: sent.credentialId,
+        publicKey: sent.publicKey,
+        signCount: sent.signCount,
+        transports: ['internal'],
+        multiDevice: sent.multiDevice,
+        backedUp: sent.backedUp,
+      };
+    },
+    authenticationOptions: async () => {
+      const challenge = nextChallenge();
+      return {
+        challenge,
+        options: {
+          challenge,
+          rpId: FAKE_PASSKEY_SITE.rpId,
+          userVerification: 'required',
+        },
+      };
+    },
+    credentialIdOf: (response) =>
+      isObject(response) && typeof response['credentialId'] === 'string'
+        ? response['credentialId']
+        : null,
+    verifyAuthentication: async ({ response, challenge, credential }) => {
+      if (!isObject(response) || response['fake'] !== 'authentication') {
+        return null;
+      }
+      const sent = response as unknown as FakeAuthenticationResponse;
+      if (
+        sent.credentialId !== credential.credentialId ||
+        sent.challenge !== challenge ||
+        sent.origin !== FAKE_PASSKEY_SITE.origin ||
+        sent.userVerified !== true ||
+        sent.signature !== fakeSignature(credential.publicKey, challenge)
+      ) {
+        return null;
+      }
+      return {
+        signCount: sent.signCount,
+        backedUp: sent.backedUp,
+        userId: sent.userId,
+      };
+    },
   };
 };
