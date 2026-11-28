@@ -33,7 +33,9 @@ A message is checked before any provider is contacted: the address, and the rule
 | `whatsapp` | A phone number with country code | A pre-approved template, its language and its parameters        |
 
 Phone numbers must start with `+` and the country code (`+237...`). There is no default country:
-guessing one would send a message to the wrong person.
+guessing one would send a message to the wrong person. A number must also be one its country
+could have issued (a real country code, the right length, the right leading digits); that is
+checked with `libphonenumber-js` (`docs/adr/0019`).
 
 ## Fallback between channels
 

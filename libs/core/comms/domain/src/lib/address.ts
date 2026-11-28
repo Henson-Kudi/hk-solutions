@@ -1,4 +1,5 @@
 import { DomainError, err, ok, type Result } from '@hk/platform/universal';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { COMMS_ERRORS } from './errors';
 
 /**
@@ -54,11 +55,29 @@ const E164 = /^\+[1-9]\d{7,14}$/;
  * dropped. The number must start with "+" and its country code: there is no
  * default country, because guessing one would send a message to the wrong
  * person in another country.
+ *
+ * The number must then be one its country could have issued: a country
+ * code that exists, the right length for that country, and leading digits
+ * that country uses. That is checked with libphonenumber-js, the JavaScript
+ * port of Google's phone number library, so "+237999999999" (Cameroon
+ * numbers start with 2 or 6) is refused before a message is paid for.
+ *
+ * It is the library's SMALL data set on purpose. The full one also knows
+ * each operator's prefixes, and would refuse a real customer whose operator
+ * opened a new range after the data was written. Country codes, lengths and
+ * leading digits change rarely; operator ranges change often.
  */
 export const parsePhoneNumber = (input: unknown): Result<string> => {
   if (typeof input !== 'string') return err(invalid('phone number'));
   const compact = input.replace(/[\s().-]+/g, '');
-  return E164.test(compact) ? ok(compact) : err(invalid('phone number'));
+  // The shape is checked first, so that nothing but a plus sign and digits
+  // is ever handed to the library. The checks below would refuse the rest
+  // anyway; this keeps odd input away from a third-party parser.
+  if (!E164.test(compact)) return err(invalid('phone number'));
+  const parsed = parsePhoneNumberFromString(compact);
+  return parsed && parsed.isValid() && parsed.number === compact
+    ? ok(compact)
+    : err(invalid('phone number'));
 };
 
 const DOT = '•';
