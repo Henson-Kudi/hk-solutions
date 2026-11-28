@@ -47,7 +47,8 @@
       ],
       "@hk/contracts/events": ["./libs/contracts/events/src/index.ts"],
       "@hk/contracts/sync": ["./libs/contracts/sync/src/index.ts"],
-      "@hk/country-packs/kernel": ["./libs/country-packs/kernel/src/index.ts"]
+      "@hk/country-packs/kernel": ["./libs/country-packs/kernel/src/index.ts"],
+      "@hk/country-packs/cm": ["./libs/country-packs/cm/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -77,6 +77,7 @@ that, and an accountant reviews them.
 | `country-pack.ts`    | `CountryPack` and the types of its parts: chart, posting rules, tax, payments |
 | `validation.ts`      | `findPackIssues`, `findPackManifestIssues`, `findUnconfirmedValues`           |
 | `registry.ts`        | `createPackRegistry`                                                          |
+| `system-roles.ts`    | `SYSTEM_ROLES`: the role names every pack shares                              |
 | `conformance.ts`     | `countryPackConformance`                                                      |
 
 ## Not here yet

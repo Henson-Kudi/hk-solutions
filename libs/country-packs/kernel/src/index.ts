@@ -4,4 +4,5 @@ export * from './lib/country';
 export * from './lib/country-pack';
 export * from './lib/effective-dated';
 export * from './lib/registry';
+export * from './lib/system-roles';
 export * from './lib/validation';
