@@ -2,6 +2,10 @@ import type {
   Identifier,
   OtpChallenge,
   OtpPurpose,
+  PasswordAttempts,
+  Session,
+  SessionRevokeReason,
+  SessionTokenPair,
   User,
 } from '@hk/core/identity/domain';
 import type { Locale } from '@hk/platform/universal';
@@ -114,6 +118,12 @@ export interface PasswordHasher {
   hash(password: string): Promise<string>;
   /** False for a wrong password and for a hash it cannot read. Never throws for either. */
   verify(password: string, hash: string): Promise<boolean>;
+  /**
+   * True when a stored hash was made with weaker settings than today's, or
+   * cannot be read. The password is then hashed again at the next sign-in,
+   * the only moment the server holds it.
+   */
+  needsRehash(hash: string): boolean;
 }
 
 /** Makes one-time codes and their stored form. */
@@ -127,4 +137,93 @@ export interface OtpCodec {
    * reveal the codes.
    */
   hash(code: string, binding: string): string;
+}
+
+/** A session and one of its token pairs, found by a token. */
+export interface FoundSession {
+  session: Session;
+  pair: SessionTokenPair;
+}
+
+/**
+ * Where sessions and their token pairs are kept. Every implementation
+ * passes sessionRepositoryConformance. Calls run inside
+ * IdentityUnitOfWork.run.
+ *
+ * Only hashes of tokens are stored and looked up.
+ */
+export interface SessionRepository {
+  /** Stores a new session with its first token pair. */
+  create(session: Session, pair: SessionTokenPair): Promise<void>;
+  findById(sessionId: string): Promise<Session | null>;
+  /**
+   * The pair with this refresh token hash, and its session, or null. On
+   * PostgreSQL both rows are locked until the unit of work ends, so two
+   * uses of one refresh token are judged one after the other.
+   */
+  findByRefreshHash(refreshHash: string): Promise<FoundSession | null>;
+  /** The pair with this access token hash, and its session, or null. Takes no lock. */
+  findByAccessHash(accessHash: string): Promise<FoundSession | null>;
+  /** The newest pair that replaced the given one, or null. */
+  findSuccessor(pairId: string): Promise<SessionTokenPair | null>;
+  /** Adds the next pair of a session. */
+  addPair(pair: SessionTokenPair): Promise<void>;
+  /** Marks a pair used or killed at `at`. Keeps the first time if it already was. */
+  retirePair(pairId: string, at: string): Promise<void>;
+  /** Records that the session was used at `at`. */
+  touch(sessionId: string, at: string): Promise<void>;
+  /**
+   * Ends a session. True when it was live; false when it is unknown or was
+   * already ended, in which case nothing changes.
+   */
+  revoke(
+    sessionId: string,
+    at: string,
+    reason: SessionRevokeReason,
+  ): Promise<boolean>;
+  /**
+   * Ends every live session of a user, except `exceptSessionId` when given.
+   * Returns how many were ended.
+   */
+  revokeAllForUser(
+    userId: string,
+    at: string,
+    reason: SessionRevokeReason,
+    exceptSessionId?: string | null,
+  ): Promise<number>;
+  /**
+   * The user's sessions that can still be used at `now`: not ended, and
+   * holding a current pair whose refresh token has not expired. Most
+   * recently used first.
+   */
+  listLiveForUser(userId: string, now: string): Promise<Session[]>;
+}
+
+/**
+ * Where the count of password attempts is kept, per user. Every
+ * implementation passes passwordAttemptsConformance.
+ */
+export interface PasswordAttemptsRepository {
+  /**
+   * The count for a user, or NO_PASSWORD_ATTEMPTS when there is none. On
+   * PostgreSQL the user's count is locked until the unit of work ends, so
+   * attempts arriving together are counted one after the other.
+   */
+  read(userId: string): Promise<PasswordAttempts>;
+  save(userId: string, attempts: PasswordAttempts): Promise<void>;
+  /** Forgets the count: after a right password or a password reset. */
+  clear(userId: string): Promise<void>;
+}
+
+export type TokenKind = 'access' | 'refresh';
+
+/** Makes session tokens and their stored form. */
+export interface TokenCodec {
+  /** A new token: at least 256 bits from a secure random source. */
+  generate(kind: TokenKind): string;
+  /**
+   * The stored form of a token, in hex. A plain SHA-256 is enough here,
+   * unlike for a six-digit code: a token is too long to guess.
+   */
+  hash(token: string): string;
 }

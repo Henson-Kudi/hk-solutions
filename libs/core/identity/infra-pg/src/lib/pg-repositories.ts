@@ -1,18 +1,27 @@
 import type {
+  FoundSession,
   IdentityUnitOfWork,
   NewUser,
   OtpRepository,
+  PasswordAttemptsRepository,
+  SessionRepository,
   UserRepository,
 } from '@hk/core/identity/application';
 import type { Channel } from '@hk/core/comms/domain';
 import {
   IDENTITY_ERRORS,
+  NO_PASSWORD_ATTEMPTS,
   parseUserLocale,
   statusAfterVerification,
   type Identifier,
   type IdentifierKind,
   type OtpChallenge,
   type OtpPurpose,
+  type PasswordAttempts,
+  type Session,
+  type SessionRevokeReason,
+  type SessionTokenPair,
+  type SignInMethod,
   type User,
   type UserStatus,
 } from '@hk/core/identity/domain';
@@ -22,7 +31,7 @@ import {
   type Database,
 } from '@hk/platform/db';
 import { DomainError } from '@hk/platform/universal';
-import { and, asc, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import type { IdentityTables } from './schema';
 
 /**
@@ -353,6 +362,269 @@ export class PgOtpRepository implements OtpRepository {
       .where(
         and(this.match(identifier, purpose), isNull(otpChallenges.consumedAt)),
       );
+  }
+}
+
+const iso = (value: Date | null): string | null =>
+  value ? value.toISOString() : null;
+
+export class PgSessionRepository implements SessionRepository {
+  constructor(private readonly tables: IdentityTables) {}
+
+  private toSession(row: IdentityTables['sessions']['$inferSelect']): Session {
+    return {
+      id: row.id,
+      userId: row.userId,
+      method: row.method as SignInMethod,
+      deviceName: row.deviceName,
+      createdAt: row.createdAt.toISOString(),
+      lastUsedAt: row.lastUsedAt.toISOString(),
+      revokedAt: iso(row.revokedAt),
+      revokeReason: row.revokeReason as SessionRevokeReason | null,
+    };
+  }
+
+  private toPair(
+    row: IdentityTables['sessionTokenPairs']['$inferSelect'],
+  ): SessionTokenPair {
+    return {
+      id: row.id,
+      sessionId: row.sessionId,
+      parentId: row.parentId,
+      accessHash: row.accessHash,
+      refreshHash: row.refreshHash,
+      issuedAt: row.issuedAt.toISOString(),
+      accessExpiresAt: row.accessExpiresAt.toISOString(),
+      refreshExpiresAt: row.refreshExpiresAt.toISOString(),
+      rotatedAt: iso(row.rotatedAt),
+    };
+  }
+
+  private pairValues(pair: SessionTokenPair) {
+    return {
+      id: pair.id,
+      sessionId: pair.sessionId,
+      parentId: pair.parentId,
+      accessHash: pair.accessHash,
+      refreshHash: pair.refreshHash,
+      issuedAt: new Date(pair.issuedAt),
+      accessExpiresAt: new Date(pair.accessExpiresAt),
+      refreshExpiresAt: new Date(pair.refreshExpiresAt),
+      rotatedAt: pair.rotatedAt === null ? null : new Date(pair.rotatedAt),
+    };
+  }
+
+  async create(session: Session, pair: SessionTokenPair): Promise<void> {
+    const transaction = requireSystemTransaction();
+    await transaction.insert(this.tables.sessions).values({
+      id: session.id,
+      userId: session.userId,
+      method: session.method,
+      deviceName: session.deviceName,
+      createdAt: new Date(session.createdAt),
+      lastUsedAt: new Date(session.lastUsedAt),
+      revokedAt:
+        session.revokedAt === null ? null : new Date(session.revokedAt),
+      revokeReason: session.revokeReason,
+    });
+    await transaction
+      .insert(this.tables.sessionTokenPairs)
+      .values(this.pairValues(pair));
+  }
+
+  async findById(sessionId: string): Promise<Session | null> {
+    const { sessions } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+    return rows[0] ? this.toSession(rows[0]) : null;
+  }
+
+  async findByRefreshHash(refreshHash: string): Promise<FoundSession | null> {
+    const { sessions, sessionTokenPairs } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select({ pair: sessionTokenPairs, session: sessions })
+      .from(sessionTokenPairs)
+      .innerJoin(sessions, eq(sessions.id, sessionTokenPairs.sessionId))
+      .where(eq(sessionTokenPairs.refreshHash, refreshHash))
+      .limit(1)
+      // Both rows are locked until the transaction ends. Two uses of one
+      // refresh token therefore run one after the other, and the second
+      // sees what the first did.
+      .for('update');
+    const row = rows[0];
+    return row
+      ? { pair: this.toPair(row.pair), session: this.toSession(row.session) }
+      : null;
+  }
+
+  async findByAccessHash(accessHash: string): Promise<FoundSession | null> {
+    const { sessions, sessionTokenPairs } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select({ pair: sessionTokenPairs, session: sessions })
+      .from(sessionTokenPairs)
+      .innerJoin(sessions, eq(sessions.id, sessionTokenPairs.sessionId))
+      .where(eq(sessionTokenPairs.accessHash, accessHash))
+      .limit(1);
+    const row = rows[0];
+    return row
+      ? { pair: this.toPair(row.pair), session: this.toSession(row.session) }
+      : null;
+  }
+
+  async findSuccessor(pairId: string): Promise<SessionTokenPair | null> {
+    const { sessionTokenPairs } = this.tables;
+    const rows = await requireSystemTransaction()
+      .select()
+      .from(sessionTokenPairs)
+      .where(eq(sessionTokenPairs.parentId, pairId))
+      .orderBy(desc(sessionTokenPairs.issuedAt), desc(sessionTokenPairs.id))
+      .limit(1);
+    return rows[0] ? this.toPair(rows[0]) : null;
+  }
+
+  async addPair(pair: SessionTokenPair): Promise<void> {
+    await requireSystemTransaction()
+      .insert(this.tables.sessionTokenPairs)
+      .values(this.pairValues(pair));
+  }
+
+  async retirePair(pairId: string, at: string): Promise<void> {
+    const { sessionTokenPairs } = this.tables;
+    await requireSystemTransaction()
+      .update(sessionTokenPairs)
+      .set({
+        rotatedAt: sql`coalesce(${sessionTokenPairs.rotatedAt}, ${at}::timestamptz)`,
+      })
+      .where(eq(sessionTokenPairs.id, pairId));
+  }
+
+  async touch(sessionId: string, at: string): Promise<void> {
+    const { sessions } = this.tables;
+    await requireSystemTransaction()
+      .update(sessions)
+      .set({ lastUsedAt: new Date(at) })
+      .where(eq(sessions.id, sessionId));
+  }
+
+  async revoke(
+    sessionId: string,
+    at: string,
+    reason: SessionRevokeReason,
+  ): Promise<boolean> {
+    const { sessions } = this.tables;
+    const rows = await requireSystemTransaction()
+      .update(sessions)
+      .set({ revokedAt: new Date(at), revokeReason: reason })
+      .where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)))
+      .returning({ id: sessions.id });
+    return rows.length > 0;
+  }
+
+  async revokeAllForUser(
+    userId: string,
+    at: string,
+    reason: SessionRevokeReason,
+    exceptSessionId: string | null = null,
+  ): Promise<number> {
+    const { sessions } = this.tables;
+    const rows = await requireSystemTransaction()
+      .update(sessions)
+      .set({ revokedAt: new Date(at), revokeReason: reason })
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          isNull(sessions.revokedAt),
+          exceptSessionId === null
+            ? undefined
+            : ne(sessions.id, exceptSessionId),
+        ),
+      )
+      .returning({ id: sessions.id });
+    return rows.length;
+  }
+
+  async listLiveForUser(userId: string, now: string): Promise<Session[]> {
+    const { sessions, sessionTokenPairs } = this.tables;
+    const transaction = requireSystemTransaction();
+    const usable = transaction
+      .select({ one: sql`1` })
+      .from(sessionTokenPairs)
+      .where(
+        and(
+          eq(sessionTokenPairs.sessionId, sessions.id),
+          isNull(sessionTokenPairs.rotatedAt),
+          gt(sessionTokenPairs.refreshExpiresAt, new Date(now)),
+        ),
+      );
+    const rows = await transaction
+      .select()
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          isNull(sessions.revokedAt),
+          sql`exists (${usable})`,
+        ),
+      )
+      .orderBy(desc(sessions.lastUsedAt), desc(sessions.id));
+    return rows.map((row) => this.toSession(row));
+  }
+}
+
+export class PgPasswordAttemptsRepository
+  implements PasswordAttemptsRepository
+{
+  constructor(private readonly tables: IdentityTables) {}
+
+  async read(userId: string): Promise<PasswordAttempts> {
+    const { passwordAttempts } = this.tables;
+    const transaction = requireSystemTransaction();
+    // There may be no row to lock yet, so the lock is on the user's id
+    // itself. It is held until the transaction ends: attempts that arrive
+    // together are counted one after the other.
+    await transaction.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${'identity:password-attempts:' + userId}, 0))`,
+    );
+    const rows = await transaction
+      .select()
+      .from(passwordAttempts)
+      .where(eq(passwordAttempts.userId, userId))
+      .limit(1);
+    const row = rows[0];
+    return row
+      ? {
+          count: row.count,
+          lastAttemptAt: iso(row.lastAttemptAt),
+          lockedUntil: iso(row.lockedUntil),
+        }
+      : { ...NO_PASSWORD_ATTEMPTS };
+  }
+
+  async save(userId: string, attempts: PasswordAttempts): Promise<void> {
+    const { passwordAttempts } = this.tables;
+    const values = {
+      count: attempts.count,
+      lastAttemptAt:
+        attempts.lastAttemptAt === null
+          ? null
+          : new Date(attempts.lastAttemptAt),
+      lockedUntil:
+        attempts.lockedUntil === null ? null : new Date(attempts.lockedUntil),
+    };
+    await requireSystemTransaction()
+      .insert(passwordAttempts)
+      .values({ userId, ...values })
+      .onConflictDoUpdate({ target: passwordAttempts.userId, set: values });
+  }
+
+  async clear(userId: string): Promise<void> {
+    const { passwordAttempts } = this.tables;
+    await requireSystemTransaction()
+      .delete(passwordAttempts)
+      .where(eq(passwordAttempts.userId, userId));
   }
 }
 

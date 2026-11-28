@@ -33,6 +33,17 @@ export const IDENTITY_ERRORS = {
   USER_NOT_FOUND: 'IDENTITY_USER_NOT_FOUND',
   /** The account is suspended or deleted. */
   ACCOUNT_UNAVAILABLE: 'IDENTITY_ACCOUNT_UNAVAILABLE',
+  /**
+   * Too many wrong passwords. Password sign-in is locked for a while; details
+   * carry retryAfterSeconds. Signing in with a code still works.
+   */
+  ACCOUNT_LOCKED: 'IDENTITY_ACCOUNT_LOCKED',
+  /**
+   * The access or refresh token is unknown, expired, replaced or revoked.
+   * One code for all, so nothing is learned from the answer. The HTTP layer
+   * answers 401.
+   */
+  SESSION_INVALID: 'IDENTITY_SESSION_INVALID',
 } as const;
 
 export type IdentityErrorCode =

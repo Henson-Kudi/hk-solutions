@@ -2,31 +2,29 @@ import type { Messenger } from '@hk/core/comms/application';
 import type { Channel } from '@hk/core/comms/domain';
 import {
   IDENTITY_ERRORS,
-  OTP_RULES,
-  channelsFor,
   checkPassword,
-  isOtpCode,
-  judgeOtp,
-  judgeResend,
-  maskIdentifier,
   nextToVerify,
-  otpExpiry,
   parseEmailIdentifier,
   parseIdentifier,
   parsePhoneIdentifier,
   parseUserLocale,
   parseUserName,
   type Identifier,
-  type OtpPurpose,
-  type User,
 } from '@hk/core/identity/domain';
-import { DomainError, type Clock } from '@hk/platform/universal';
-import { otpMessage } from './otp-messages';
+import type { Clock } from '@hk/platform/universal';
+import {
+  createOtpFlow,
+  expiredCode as expired,
+  identityFailure as fail,
+  type CodeSent,
+} from './otp-flow';
 import type {
   IdentityUnitOfWork,
   OtpCodec,
   OtpRepository,
+  PasswordAttemptsRepository,
   PasswordHasher,
+  SessionRepository,
   UserRepository,
 } from './ports';
 
@@ -60,17 +58,6 @@ export interface SignUpInput {
   preferredChannel?: Channel | null;
 }
 
-/** Where a code went, in a form safe to show. */
-export interface CodeSent {
-  /** "phone" or "email". */
-  kind: Identifier['kind'];
-  /** The masked destination: "+237•••••001". */
-  destination: string;
-  channel: Channel;
-  /** ISO 8601 instant after which the code no longer works. */
-  expiresAt: string;
-}
-
 export interface SignUpResult {
   userId: string;
   codeSent: CodeSent;
@@ -87,6 +74,10 @@ export interface VerifyCodeResult {
 export interface AccountsOptions {
   users: UserRepository;
   otps: OtpRepository;
+  /** Sessions are ended when a password is reset or changed. */
+  sessions: SessionRepository;
+  /** The count of wrong passwords is forgotten when a password is reset. */
+  passwordAttempts: PasswordAttemptsRepository;
   unitOfWork: IdentityUnitOfWork;
   passwordHasher: PasswordHasher;
   otpCodec: OtpCodec;
@@ -126,229 +117,41 @@ export interface Accounts {
     identifier: string;
     channel?: Channel | null;
   }): Promise<CodeSent>;
-  /** Sets a new password, given the reset code. Returns the user's id. */
+  /**
+   * Sets a new password, given the reset code. Returns the user's id.
+   * Every session of the user is ended: whoever knew the old password, or
+   * held a session, is out.
+   */
   resetPassword(input: {
     identifier: string;
     code: string;
     newPassword: string;
   }): Promise<{ userId: string }>;
-  /** Changes the password of a signed-in user. */
+  /**
+   * Changes the password of a signed-in user. Every other session of the
+   * user is ended; the one named by `keepSessionId` stays.
+   */
   changePassword(input: {
     userId: string;
     currentPassword: string | null;
     newPassword: string;
+    keepSessionId?: string | null;
   }): Promise<void>;
 }
-
-const fail = (
-  code: string,
-  message: string,
-  details?: Record<string, string | number | boolean | null>,
-  kind: 'validation' | 'conflict' | 'not-found' = 'validation',
-): DomainError => new DomainError(code, message, { kind, details });
-
-const expired = (): DomainError =>
-  fail(
-    IDENTITY_ERRORS.OTP_EXPIRED,
-    'That code is no longer valid. Ask for a new one.',
-  );
-
-const bindingOf = (
-  userId: string,
-  identifier: Identifier,
-  purpose: OtpPurpose,
-): string => `${userId}|${purpose}|${identifier.kind}|${identifier.value}`;
 
 export const createAccounts = (options: AccountsOptions): Accounts => {
   const {
     users,
-    otps,
+    sessions,
+    passwordAttempts,
     unitOfWork,
     passwordHasher,
-    otpCodec,
-    messenger,
     clock,
     newId,
-    appName,
   } = options;
+  const { issueCode, pretendSend, redeemCode } = createOtpFlow(options);
 
   const nowIso = (): string => clock.now().toISOString();
-
-  /** The channels to try for an identifier, the preferred one first. */
-  const channelOrder = (
-    identifier: Identifier,
-    preferred: Channel | null | undefined,
-  ): Channel[] => {
-    const usable = channelsFor(identifier.kind);
-    return preferred && usable.includes(preferred)
-      ? [preferred, ...usable.filter((channel) => channel !== preferred)]
-      : [...usable];
-  };
-
-  const describeSend = (
-    identifier: Identifier,
-    channel: Channel,
-    expiresAt: string,
-  ): CodeSent => ({
-    kind: identifier.kind,
-    destination: maskIdentifier(identifier),
-    channel,
-    expiresAt,
-  });
-
-  /**
-   * Makes a code, stores its hash, and sends it. Earlier codes for the same
-   * identifier and purpose stop working.
-   */
-  const issueCode = async (
-    user: User,
-    identifier: Identifier,
-    purpose: OtpPurpose,
-    preferred: Channel | null | undefined,
-  ): Promise<CodeSent> => {
-    const now = clock.now();
-    const since = new Date(
-      now.getTime() - OTP_RULES.resendWindowSeconds * 1000,
-    ).toISOString();
-    const channels = channelOrder(identifier, preferred);
-    const firstChannel = channels[0] as Channel;
-    const code = otpCodec.generate();
-    const challengeId = newId();
-    const expiresAt = otpExpiry(now);
-
-    await unitOfWork.run(async () => {
-      const verdict = judgeResend(
-        await otps.sentTimes(identifier, purpose, since),
-        now.toISOString(),
-      );
-      if (!verdict.allowed) {
-        throw fail(
-          verdict.reason === 'too_soon'
-            ? IDENTITY_ERRORS.OTP_RESEND_TOO_SOON
-            : IDENTITY_ERRORS.OTP_RESEND_LIMIT,
-          'A code was sent a moment ago. Wait before asking for another.',
-          { retryAfterSeconds: verdict.retryAfterSeconds },
-          'conflict',
-        );
-      }
-      await otps.consumeAll(identifier, purpose, now.toISOString());
-      await otps.create({
-        id: challengeId,
-        userId: user.id,
-        identifier,
-        purpose,
-        channel: firstChannel,
-        codeHash: otpCodec.hash(code, bindingOf(user.id, identifier, purpose)),
-        createdAt: now.toISOString(),
-        expiresAt,
-        attempts: 0,
-        consumedAt: null,
-      });
-    });
-
-    // The message is sent after the transaction: a transaction must not wait
-    // on a provider. A second copy of a code is harmless, so a channel that
-    // times out does not stop the next one being tried.
-    const messages = channels
-      .map((channel) =>
-        otpMessage({
-          channel,
-          identifier,
-          purpose,
-          code,
-          locale: user.locale,
-          appName,
-          minutes: OTP_RULES.ttlSeconds / 60,
-        }),
-      )
-      .filter((message) => message !== null);
-    const outcome = await messenger.sendFirst(messages, {
-      onUnknown: 'continue',
-    });
-    if (!outcome.delivered) {
-      // Nobody has the code. It is removed, so it cannot be used and does
-      // not make the person wait before trying again.
-      await unitOfWork.run(() => otps.discard(challengeId));
-      throw fail(
-        IDENTITY_ERRORS.OTP_DELIVERY_FAILED,
-        'The code could not be sent. Try again, or use another channel.',
-        { attempts: outcome.attempts.length },
-        'conflict',
-      );
-    }
-    return describeSend(identifier, outcome.receipt.channel, expiresAt);
-  };
-
-  /**
-   * What a caller is told when nothing is sent: the same shape as a real
-   * send, so the answer does not reveal whether an account exists.
-   */
-  const pretendSend = (
-    identifier: Identifier,
-    preferred: Channel | null | undefined,
-  ): CodeSent =>
-    describeSend(
-      identifier,
-      channelOrder(identifier, preferred)[0] as Channel,
-      otpExpiry(clock.now()),
-    );
-
-  /**
-   * Checks a code and uses it up. The wrong-attempt count is saved BEFORE
-   * the error is raised: were it raised inside the unit of work, the count
-   * would be rolled back and a code could be guessed without limit.
-   */
-  const redeemCode = async (
-    user: User,
-    identifier: Identifier,
-    purpose: OtpPurpose,
-    code: string,
-    onAccepted: () => Promise<void>,
-  ): Promise<void> => {
-    if (!isOtpCode(code)) {
-      throw fail(IDENTITY_ERRORS.OTP_INVALID, 'A code is six digits.');
-    }
-    const submitted = otpCodec.hash(
-      code,
-      bindingOf(user.id, identifier, purpose),
-    );
-    const verdict = await unitOfWork.run(async () => {
-      const challenge = await otps.findLive(identifier, purpose);
-      // A code issued to another user for the same identifier is not this
-      // user's code.
-      const own = challenge && challenge.userId === user.id ? challenge : null;
-      const result = judgeOtp(own, submitted, nowIso());
-      if (!own) return result;
-      if (result.outcome === 'accepted') {
-        await otps.consume(own.id, nowIso());
-        await onAccepted();
-      } else if (result.outcome === 'wrong') {
-        await otps.recordAttempt(own.id);
-      } else if (result.outcome === 'exhausted') {
-        await otps.recordAttempt(own.id);
-        await otps.consume(own.id, nowIso());
-      }
-      return result;
-    });
-
-    switch (verdict.outcome) {
-      case 'accepted':
-        return;
-      case 'wrong':
-        throw fail(IDENTITY_ERRORS.OTP_INVALID, 'That code is not right.', {
-          attemptsLeft: verdict.attemptsLeft,
-        });
-      case 'exhausted':
-        throw fail(
-          IDENTITY_ERRORS.OTP_MAX_ATTEMPTS,
-          'Too many wrong attempts. Ask for a new code.',
-          undefined,
-          'conflict',
-        );
-      default:
-        throw expired();
-    }
-  };
 
   const signUp = async (input: SignUpInput): Promise<SignUpResult> => {
     const name = parseUserName(input.name);
@@ -530,8 +333,17 @@ export const createAccounts = (options: AccountsOptions): Accounts => {
     if (!password.ok) throw password.error;
     const hash = await passwordHasher.hash(password.value);
 
-    await redeemCode(user, identifier.value, 'password_reset', input.code, () =>
-      users.setPasswordHash(user.id, hash, nowIso()),
+    await redeemCode(
+      user,
+      identifier.value,
+      'password_reset',
+      input.code,
+      async () => {
+        const at = nowIso();
+        await users.setPasswordHash(user.id, hash, at);
+        await sessions.revokeAllForUser(user.id, at, 'password_changed');
+        await passwordAttempts.clear(user.id);
+      },
     );
     return { userId: user.id };
   };
@@ -540,6 +352,7 @@ export const createAccounts = (options: AccountsOptions): Accounts => {
     userId: string;
     currentPassword: string | null;
     newPassword: string;
+    keepSessionId?: string | null;
   }): Promise<void> => {
     const [user, currentHash] = await unitOfWork.run(
       async () =>
@@ -574,7 +387,16 @@ export const createAccounts = (options: AccountsOptions): Accounts => {
     });
     if (!password.ok) throw password.error;
     const hash = await passwordHasher.hash(password.value);
-    await unitOfWork.run(() => users.setPasswordHash(user.id, hash, nowIso()));
+    await unitOfWork.run(async () => {
+      const at = nowIso();
+      await users.setPasswordHash(user.id, hash, at);
+      await sessions.revokeAllForUser(
+        user.id,
+        at,
+        'password_changed',
+        input.keepSessionId ?? null,
+      );
+    });
   };
 
   return {

@@ -1,18 +1,24 @@
 import {
   argon2,
+  createHash,
   createHmac,
   randomBytes,
   randomInt,
   timingSafeEqual,
 } from 'node:crypto';
 import { promisify } from 'node:util';
-import type { OtpCodec, PasswordHasher } from '@hk/core/identity/application';
+import type {
+  OtpCodec,
+  PasswordHasher,
+  TokenCodec,
+} from '@hk/core/identity/application';
 import { OTP_RULES } from '@hk/core/identity/domain';
 
 /**
- * The server's cryptography for identity: Argon2id for passwords and
- * HMAC-SHA-256 for one-time codes, both from Node's own crypto module. No
- * third-party library is involved.
+ * The server's cryptography for identity: Argon2id for passwords,
+ * HMAC-SHA-256 for one-time codes, and random session tokens stored as
+ * SHA-256, all from Node's own crypto module. No third-party library is
+ * involved.
  */
 
 const argon2Async = promisify(argon2);
@@ -111,6 +117,17 @@ export const createArgon2idPasswordHasher = (
       return false;
     }
   },
+  needsRehash: (hash) => {
+    const match = PHC.exec(hash);
+    if (!match) return true;
+    return (
+      Number(match[1]) < parameters.memoryKiB ||
+      Number(match[2]) < parameters.passes ||
+      Number(match[3]) !== parameters.parallelism ||
+      Buffer.from(match[4] as string, 'base64').length < SALT_BYTES ||
+      Buffer.from(match[5] as string, 'base64').length < TAG_BYTES
+    );
+  },
 });
 
 /** The shortest secret accepted: 32 bytes, the size of the HMAC's output. */
@@ -142,3 +159,25 @@ export const createHmacOtpCodec = (secret: Uint8Array): OtpCodec => {
         .digest('hex'),
   };
 };
+
+/** Random bytes in a session token: 256 bits. */
+export const TOKEN_BYTES = 32;
+
+/**
+ * The start of each kind of token. It lets a person, and a secret scanner,
+ * recognise a token that turns up somewhere it should not be.
+ */
+export const TOKEN_PREFIXES = { access: 'hka_', refresh: 'hkr_' } as const;
+
+/**
+ * Session tokens for production: 256 random bits from the operating
+ * system, written in URL-safe base64 after a prefix, and stored as SHA-256.
+ *
+ * A plain hash is right here, where it was not for a six-digit code: there
+ * are 2^256 possible tokens, so a hash cannot be reversed by trying them.
+ */
+export const createNodeTokenCodec = (): TokenCodec => ({
+  generate: (kind) =>
+    TOKEN_PREFIXES[kind] + randomBytes(TOKEN_BYTES).toString('base64url'),
+  hash: (token) => createHash('sha256').update(token, 'utf8').digest('hex'),
+});

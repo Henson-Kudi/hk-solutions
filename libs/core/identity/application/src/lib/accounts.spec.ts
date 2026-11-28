@@ -111,6 +111,8 @@ describe('accounts', () => {
     accounts = createAccounts({
       users: store.users,
       otps: store.otps,
+      sessions: store.sessions,
+      passwordAttempts: store.passwordAttempts,
       unitOfWork: store.unitOfWork,
       passwordHasher: insecureTestPasswordHasher,
       otpCodec: codec,
