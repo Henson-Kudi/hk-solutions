@@ -64,6 +64,13 @@
       "@hk/core/comms/domain": ["./libs/core/comms/domain/src/index.ts"],
       "@hk/core/comms/application": [
         "./libs/core/comms/application/src/index.ts"
+      ],
+      "@hk/core/identity/domain": ["./libs/core/identity/domain/src/index.ts"],
+      "@hk/core/identity/application": [
+        "./libs/core/identity/application/src/index.ts"
+      ],
+      "@hk/core/identity/infra-pg": [
+        "./libs/core/identity/infra-pg/src/index.ts"
       ]
     }
   },
