@@ -39,7 +39,7 @@ Decisions and their reasons: docs/adr/ (start with 0001-architecture-baseline.md
 - pnpm verify:boundaries                                         self-test of the boundary rules; run after editing eslint.config.mjs, tools/eslint or .dependency-cruiser.cjs
 - nx run migrator:serve -- --services core,sales                run migrations
 - nx g @hk/tools:product <name>                                  new product
-- nx run-many -t test --projects=tag:runtime:universal --configuration=hermes   universal-runtime tests
+- nx run-many -t test --projects=tag:runtime:universal,tag:scope:contracts --configuration=hermes   universal-runtime tests
 - HK_TEST_REDIS_URL=redis://127.0.0.1:63790 HK_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54320/hk nx affected -t test   also runs the tests that need a real Redis or Postgres (after pnpm infra:up); CI always does
 - pnpm test:hermes                                              the line above plus a compile with the real Hermes compiler (docs/adr/0002)
 - nx run e2e:e2e

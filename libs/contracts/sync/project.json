@@ -1,0 +1,35 @@
+{
+  "name": "contracts-sync",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/contracts/sync/src",
+  "projectType": "library",
+  "tags": ["scope:contracts"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/contracts/sync",
+        "main": "libs/contracts/sync/src/index.ts",
+        "tsConfig": "libs/contracts/sync/tsconfig.lib.json",
+        "assets": ["libs/contracts/sync/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}

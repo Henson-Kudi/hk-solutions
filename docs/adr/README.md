@@ -13,6 +13,7 @@ these before proposing a change to how the repo is structured.
 | [0006](./0006-idempotency-over-http.md)         | Idempotency over HTTP, route coverage and key cleanup              | Accepted                  |
 | [0007](./0007-internal-auth-tokens.md)          | Internal authentication tokens                                     | Accepted                  |
 | [0008](./0008-redaction-and-test-support.md)    | Redaction, and how test support is split                           | Accepted                  |
+| [0009](./0009-contracts.md)                     | Contracts: products, permissions, events and sync                  | Accepted                  |
 
 ## Adding one
 

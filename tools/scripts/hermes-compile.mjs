@@ -25,7 +25,12 @@ import { build } from 'vite';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = join(ROOT, 'dist/hermes');
-const PURE_TAGS = ['runtime:universal', 'layer:domain', 'layer:application'];
+const PURE_TAGS = [
+  'runtime:universal',
+  'scope:contracts',
+  'layer:domain',
+  'layer:application',
+];
 const SKIP_FOLDERS = new Set(['node_modules', 'dist', 'src']);
 
 const posix = (path) => path.split('\\').join('/');

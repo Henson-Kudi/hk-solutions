@@ -1,0 +1,35 @@
+{
+  "name": "contracts-permissions",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/contracts/permissions/src",
+  "projectType": "library",
+  "tags": ["scope:contracts"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/contracts/permissions",
+        "main": "libs/contracts/permissions/src/index.ts",
+        "tsConfig": "libs/contracts/permissions/tsconfig.lib.json",
+        "assets": ["libs/contracts/permissions/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}
