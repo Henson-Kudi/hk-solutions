@@ -1,6 +1,10 @@
 import { builtinModules } from 'node:module';
 import nx from '@nx/eslint-plugin';
 import { depConstraints } from './tools/eslint/boundaries.mjs';
+import {
+  COUNTRY_LITERAL_EXEMPT_FILES,
+  countryLiteralSelectors,
+} from './tools/eslint/country-literals.mjs';
 
 /**
  * Every project's own eslint.config.mjs spreads this config, and ESLint
@@ -96,6 +100,23 @@ const INTERPOLATED_ARG =
 const logMessage =
   'Log messages are constant strings. Pass values as structured fields so redaction can see them: logger.info("invoice issued", { invoiceId }).';
 
+/** Syntax that is banned everywhere: @Global() and interpolated log messages. */
+const syntaxRestrictions = [
+  {
+    selector: 'Decorator > CallExpression[callee.name="Global"]',
+    message:
+      'Never use @Global(). Import the module where it is needed so dependencies stay visible.',
+  },
+  {
+    selector: `CallExpression[callee.property.name=${LOG_METHODS}][callee.object.name=${LOGGER_NAMES}] > ${INTERPOLATED_ARG}`,
+    message: logMessage,
+  },
+  {
+    selector: `CallExpression[callee.property.name=${LOG_METHODS}][callee.object.property.name=${LOGGER_NAMES}] > ${INTERPOLATED_ARG}`,
+    message: logMessage,
+  },
+];
+
 const eslintConfig = [
   ...nx.configs['flat/base'],
   ...nx.configs['flat/typescript'],
@@ -124,20 +145,18 @@ const eslintConfig = [
       ],
       'no-restricted-syntax': [
         'error',
-        {
-          selector: 'Decorator > CallExpression[callee.name="Global"]',
-          message:
-            'Never use @Global(). Import the module where it is needed so dependencies stay visible.',
-        },
-        {
-          selector: `CallExpression[callee.property.name=${LOG_METHODS}][callee.object.name=${LOGGER_NAMES}] > ${INTERPOLATED_ARG}`,
-          message: logMessage,
-        },
-        {
-          selector: `CallExpression[callee.property.name=${LOG_METHODS}][callee.object.property.name=${LOGGER_NAMES}] > ${INTERPOLATED_ARG}`,
-          message: logMessage,
-        },
+        ...syntaxRestrictions,
+        ...countryLiteralSelectors,
       ],
+    },
+  },
+  {
+    // Packs, seed data and tests may name a country. A later entry for the
+    // same rule replaces the earlier one, so the other bans are repeated.
+    basePath: WORKSPACE_ROOT,
+    files: COUNTRY_LITERAL_EXEMPT_FILES,
+    rules: {
+      'no-restricted-syntax': ['error', ...syntaxRestrictions],
     },
   },
   {

@@ -1,0 +1,35 @@
+{
+  "name": "country-packs-kernel",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/country-packs/kernel/src",
+  "projectType": "library",
+  "tags": ["scope:country-pack", "pack:kernel"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/country-packs/kernel",
+        "main": "libs/country-packs/kernel/src/index.ts",
+        "tsConfig": "libs/country-packs/kernel/tsconfig.lib.json",
+        "assets": ["libs/country-packs/kernel/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}
