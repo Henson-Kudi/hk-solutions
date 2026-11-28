@@ -2,6 +2,8 @@ import type {
   Identifier,
   OtpChallenge,
   OtpPurpose,
+  Passkey,
+  PasskeyChallenge,
   PasswordAttempts,
   Session,
   SessionRevokeReason,
@@ -226,4 +228,123 @@ export interface TokenCodec {
    * unlike for a six-digit code: a token is too long to guess.
    */
   hash(token: string): string;
+}
+
+/**
+ * Where passkeys are kept. Every implementation passes
+ * passkeyRepositoryConformance. Calls run inside IdentityUnitOfWork.run.
+ */
+export interface PasskeyRepository {
+  /**
+   * Stores a passkey. Rejects with IDENTITY_PASSKEY_ALREADY_REGISTERED when
+   * its credential id is already stored, for any user.
+   */
+  create(passkey: Passkey): Promise<void>;
+  /**
+   * The passkey with this credential id, or null. On PostgreSQL the row is
+   * locked until the unit of work ends, so two uses of one passkey are
+   * judged one after the other.
+   */
+  findByCredentialId(credentialId: string): Promise<Passkey | null>;
+  /** The user's passkeys, oldest first. */
+  listForUser(userId: string): Promise<Passkey[]>;
+  /** Records a successful sign-in: the count the device reported, and when. */
+  recordUse(
+    passkeyId: string,
+    use: { signCount: number; backedUp: boolean; at: string },
+  ): Promise<void>;
+  /** Renames one of the user's passkeys. False when the user has no such passkey. */
+  rename(userId: string, passkeyId: string, name: string): Promise<boolean>;
+  /** Removes one of the user's passkeys. False when the user has no such passkey. */
+  remove(userId: string, passkeyId: string): Promise<boolean>;
+}
+
+/**
+ * Where passkey challenges wait for their answer. Every implementation
+ * passes passkeyChallengeConformance.
+ */
+export interface PasskeyChallengeRepository {
+  create(challenge: PasskeyChallenge): Promise<void>;
+  /**
+   * Removes a challenge and returns it, or null when there is none. A
+   * challenge can be taken once: of two takes at the same moment, one gets
+   * it and the other gets null.
+   */
+  take(challengeId: string): Promise<PasskeyChallenge | null>;
+}
+
+/** What the server sends a device to start a passkey ceremony. */
+export interface PasskeyOptions {
+  /** The random value the device must sign, in URL-safe base64. */
+  challenge: string;
+  /**
+   * The options object for the browser or the app, ready to be sent as
+   * JSON: what navigator.credentials.create() or .get() is given.
+   */
+  options: Readonly<Record<string, unknown>>;
+}
+
+/** A credential a device has just made, checked and ready to store. */
+export interface RegisteredCredential {
+  credentialId: string;
+  publicKey: string;
+  signCount: number;
+  transports: string[];
+  multiDevice: boolean;
+  backedUp: boolean;
+}
+
+/** What a checked sign-in response says. */
+export interface VerifiedAssertion {
+  /** The use count the device reported. */
+  signCount: number;
+  backedUp: boolean;
+  /** The user id the device says the passkey is for, or null when it gave none. */
+  userId: string | null;
+}
+
+/**
+ * The WebAuthn part of passkeys: making the options a device needs and
+ * checking what it sends back. On the server this wraps a WebAuthn library
+ * and is configured with the site's name and the origins it is served
+ * from.
+ *
+ * A response comes from outside and is `unknown` here. The verify methods
+ * answer null for anything that does not check out, whatever the reason,
+ * and do not throw for it.
+ */
+export interface PasskeyVerifier {
+  registrationOptions(input: {
+    userId: string;
+    /** Shown by the device next to the passkey: the phone number or email. */
+    userName: string;
+    displayName: string;
+    /** Passkeys the person already has, so a device does not register twice. */
+    exclude: readonly Pick<Passkey, 'credentialId' | 'transports'>[];
+  }): Promise<PasskeyOptions>;
+  /**
+   * Checks a registration response: it answers this challenge, was made on
+   * one of our origins for our site, and the device verified the person.
+   */
+  verifyRegistration(input: {
+    response: unknown;
+    challenge: string;
+  }): Promise<RegisteredCredential | null>;
+  /** Options for signing in. They name no account: the passkey says whose it is. */
+  authenticationOptions(): Promise<PasskeyOptions>;
+  /** The credential id a sign-in response claims, unchecked, or null when it has none. */
+  credentialIdOf(response: unknown): string | null;
+  /**
+   * Checks a sign-in response against the stored public key: it answers
+   * this challenge, on one of our origins, with a valid signature, and the
+   * device verified the person.
+   */
+  verifyAuthentication(input: {
+    response: unknown;
+    challenge: string;
+    credential: Pick<
+      Passkey,
+      'credentialId' | 'publicKey' | 'signCount' | 'transports'
+    >;
+  }): Promise<VerifiedAssertion | null>;
 }

@@ -1,0 +1,19 @@
+{
+  "name": "core-identity-infra-webauthn",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/identity/infra-webauthn/src",
+  "projectType": "library",
+  "tags": ["scope:core", "layer:infra-node"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/core/identity/infra-webauthn",
+        "main": "libs/core/identity/infra-webauthn/src/index.ts",
+        "tsConfig": "libs/core/identity/infra-webauthn/tsconfig.lib.json",
+        "assets": ["libs/core/identity/infra-webauthn/*.md"]
+      }
+    }
+  }
+}

@@ -44,6 +44,18 @@ export const IDENTITY_ERRORS = {
    * answers 401.
    */
   SESSION_INVALID: 'IDENTITY_SESSION_INVALID',
+  /**
+   * A passkey response was not accepted: the challenge is unknown or
+   * expired, the passkey is not registered, or the signature does not
+   * check. One code for all, so nothing is learned from the answer.
+   */
+  PASSKEY_INVALID: 'IDENTITY_PASSKEY_INVALID',
+  /** The person already has as many passkeys as are allowed. */
+  PASSKEY_LIMIT: 'IDENTITY_PASSKEY_LIMIT',
+  /** The passkey is already registered, to this account or another. */
+  PASSKEY_ALREADY_REGISTERED: 'IDENTITY_PASSKEY_ALREADY_REGISTERED',
+  /** The person has no passkey with that id. */
+  PASSKEY_NOT_FOUND: 'IDENTITY_PASSKEY_NOT_FOUND',
 } as const;
 
 export type IdentityErrorCode =

@@ -7,13 +7,9 @@ import {
   isAccessLive,
   judgePasswordAttempt,
   judgeRefresh,
-  parseDeviceName,
   parseIdentifier,
   sameIdentifier,
-  tokenExpiries,
   type Identifier,
-  type Session,
-  type SessionTokenPair,
   type SignInMethod,
   type User,
 } from '@hk/core/identity/domain';
@@ -24,6 +20,7 @@ import {
   identityFailure,
   type CodeSent,
 } from './otp-flow';
+import { createSessionStarter, type SessionTokens } from './session-starter';
 import type {
   IdentityUnitOfWork,
   OtpCodec,
@@ -60,22 +57,6 @@ export const SESSION_USE_CASES = {
   },
   listSessions: { name: 'core.identity.list_sessions', offline: false },
 } as const;
-
-/**
- * What a person holds after signing in or refreshing. The two tokens are
- * secrets: they are returned once, here, and never stored or logged by the
- * server.
- */
-export interface SessionTokens {
-  userId: string;
-  sessionId: string;
-  accessToken: string;
-  /** ISO 8601 instant after which the access token no longer works. */
-  accessExpiresAt: string;
-  refreshToken: string;
-  /** ISO 8601 instant after which the refresh token no longer works. */
-  refreshExpiresAt: string;
-}
 
 /** Who a request is from, as established from its access token. */
 export interface AuthenticatedSession {
@@ -199,7 +180,6 @@ export const createSessions = (options: SessionsOptions): Sessions => {
     passwordHasher,
     tokenCodec,
     clock,
-    newId,
   } = options;
   const { issueCode, pretendSend, redeemCode } = createOtpFlow(options);
 
@@ -215,57 +195,7 @@ export const createSessions = (options: SessionsOptions): Sessions => {
     await passwordHasher.verify(password, await decoyHash);
   };
 
-  /** A new pair for a session, with the tokens themselves to hand back. */
-  const mintPair = (
-    session: Session,
-    parentId: string | null,
-    now: Date,
-  ): { pair: SessionTokenPair; tokens: SessionTokens } => {
-    const accessToken = tokenCodec.generate('access');
-    const refreshToken = tokenCodec.generate('refresh');
-    const expiries = tokenExpiries(now);
-    return {
-      pair: {
-        id: newId(),
-        sessionId: session.id,
-        parentId,
-        accessHash: tokenCodec.hash(accessToken),
-        refreshHash: tokenCodec.hash(refreshToken),
-        issuedAt: now.toISOString(),
-        ...expiries,
-        rotatedAt: null,
-      },
-      tokens: {
-        userId: session.userId,
-        sessionId: session.id,
-        accessToken,
-        refreshToken,
-        ...expiries,
-      },
-    };
-  };
-
-  /** Starts a session. Runs inside the caller's unit of work. */
-  const startSession = async (
-    userId: string,
-    method: SignInMethod,
-    deviceName: unknown,
-  ): Promise<SessionTokens> => {
-    const now = clock.now();
-    const session: Session = {
-      id: newId(),
-      userId,
-      method,
-      deviceName: parseDeviceName(deviceName),
-      createdAt: now.toISOString(),
-      lastUsedAt: now.toISOString(),
-      revokedAt: null,
-      revokeReason: null,
-    };
-    const { pair, tokens } = mintPair(session, null, now);
-    await sessions.create(session, pair);
-    return tokens;
-  };
+  const { mintPair, startSession } = createSessionStarter(options);
 
   const signInWithPassword: Sessions['signInWithPassword'] = async (input) => {
     const identifier = parseIdentifier(input.identifier);

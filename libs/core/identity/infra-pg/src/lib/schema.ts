@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
+  boolean,
   check,
   index,
   integer,
@@ -13,7 +15,7 @@ import {
 
 /**
  * The identity tables: users, what they sign in with, one-time codes,
- * sessions and the count of wrong passwords.
+ * sessions, the count of wrong passwords, and passkeys.
  *
  *   export const identity = identityTables(core);
  *
@@ -160,7 +162,7 @@ export const identityTables = (schema: PgSchema) => {
       userId: uuid('user_id')
         .notNull()
         .references(() => users.id, { onDelete: 'cascade' }),
-      /** "password" or "otp". */
+      /** "password", "otp" or "passkey". */
       method: text('method').notNull(),
       /** What the device calls itself. Shown to its owner only; not trusted. */
       deviceName: text('device_name'),
@@ -178,7 +180,10 @@ export const identityTables = (schema: PgSchema) => {
     },
     (table) => [
       index('sessions_user_idx').on(table.userId, table.lastUsedAt),
-      check('sessions_method', sql`${table.method} in ('password', 'otp')`),
+      check(
+        'sessions_method',
+        sql`${table.method} in ('password', 'otp', 'passkey')`,
+      ),
       check(
         'sessions_revoke_reason',
         sql`${table.revokeReason} is null or ${table.revokeReason} in ('signed_out', 'signed_out_everywhere', 'password_changed', 'reuse_detected')`,
@@ -252,6 +257,81 @@ export const identityTables = (schema: PgSchema) => {
     (table) => [check('password_attempts_count', sql`${table.count} >= 0`)],
   );
 
+  const passkeys = schema.table(
+    'passkeys',
+    {
+      id: uuid('id').primaryKey(),
+      userId: uuid('user_id')
+        .notNull()
+        .references(() => users.id, { onDelete: 'cascade' }),
+      /** The id the device gave the credential, in URL-safe base64. */
+      credentialId: text('credential_id').notNull(),
+      /** The PUBLIC key, COSE-encoded, in URL-safe base64. Not a secret. */
+      publicKey: text('public_key').notNull(),
+      /**
+       * The use count the device last reported: an unsigned 32-bit number,
+       * which does not fit a PostgreSQL integer.
+       */
+      signCount: bigint('sign_count', { mode: 'number' }).notNull(),
+      transports: text('transports').array().notNull(),
+      multiDevice: boolean('multi_device').notNull(),
+      backedUp: boolean('backed_up').notNull(),
+      name: text('name').notNull(),
+      createdAt: timestamp('created_at', {
+        withTimezone: true,
+        precision: 3,
+      }).notNull(),
+      lastUsedAt: timestamp('last_used_at', {
+        withTimezone: true,
+        precision: 3,
+      }),
+    },
+    (table) => [
+      // One passkey, one account: this is what a sign-in looks it up by.
+      uniqueIndex('passkeys_credential_uq').on(table.credentialId),
+      index('passkeys_user_idx').on(table.userId, table.createdAt),
+      check('passkeys_sign_count', sql`${table.signCount} >= 0`),
+    ],
+  );
+
+  const passkeyChallenges = schema.table(
+    'passkey_challenges',
+    {
+      id: uuid('id').primaryKey(),
+      /** "registration" or "authentication". */
+      ceremony: text('ceremony').notNull(),
+      /**
+       * The signed-in user registering a passkey; null for a sign-in. Not a
+       * foreign key: a challenge lives five minutes and is checked against
+       * the user when it is used.
+       */
+      userId: uuid('user_id'),
+      /** The random value the device must sign, in URL-safe base64. */
+      challenge: text('challenge').notNull(),
+      createdAt: timestamp('created_at', {
+        withTimezone: true,
+        precision: 3,
+      }).notNull(),
+      expiresAt: timestamp('expires_at', {
+        withTimezone: true,
+        precision: 3,
+      }).notNull(),
+    },
+    (table) => [
+      // For the job that clears challenges nobody answered.
+      index('passkey_challenges_expiry_idx').on(table.expiresAt),
+      check(
+        'passkey_challenges_ceremony',
+        sql`${table.ceremony} in ('registration', 'authentication')`,
+      ),
+      // A registration is always some user's; a sign-in never is.
+      check(
+        'passkey_challenges_user',
+        sql`(${table.ceremony} = 'registration') = (${table.userId} is not null)`,
+      ),
+    ],
+  );
+
   return {
     users,
     userIdentifiers,
@@ -259,6 +339,8 @@ export const identityTables = (schema: PgSchema) => {
     sessions,
     sessionTokenPairs,
     passwordAttempts,
+    passkeys,
+    passkeyChallenges,
   };
 };
 
@@ -277,4 +359,6 @@ export const IDENTITY_GLOBAL_TABLES = [
   'sessions',
   'session_token_pairs',
   'password_attempts',
+  'passkeys',
+  'passkey_challenges',
 ] as const;
