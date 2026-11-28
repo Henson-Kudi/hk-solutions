@@ -1,3 +1,4 @@
+export * from './lib/access';
 export * from './lib/errors';
 export * from './lib/identifier';
 export * from './lib/otp';

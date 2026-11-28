@@ -1,10 +1,11 @@
 # core/identity
 
 Who a person is, and how they prove it. Decisions and their reasons: `docs/adr/0016` (accounts),
-`docs/adr/0017` (sessions) and `docs/adr/0018` (passkeys).
+`docs/adr/0017` (sessions), `docs/adr/0018` (passkeys) and `docs/adr/0020` (access).
 
-Identity is delivered in five parts (plan row 3.2). Parts 1 to 3 are here: **accounts**,
-**sessions** and **passkeys**. Access (roles, memberships, invites) and shared devices follow.
+Identity is delivered in five parts (plan row 3.2). Parts 1 to 3 are here (**accounts**,
+**sessions**, **passkeys**) and the first half of part 4, **access**: roles, memberships and
+choosing a business. Invites and shared devices follow.
 
 | Lib              | Runs on              | What it holds                                                           |
 | ---------------- | -------------------- | ----------------------------------------------------------------------- |
@@ -64,6 +65,30 @@ const tokens = await passkeys.finishSignIn({ challengeId: start.challengeId, res
 Passkey use cases: `beginRegistration`, `finishRegistration`, `beginSignIn`, `finishSignIn`,
 `listPasskeys`, `renamePasskey`, `removePasskey`.
 
+`createAccess` answers what a person may do in a business, and manages its roles and members:
+
+```ts
+const access = createAccess({
+  users,
+  roles: new PgRoleRepository(tables),
+  memberships: new PgMembershipRepository(tables),
+  directory: new PgMembershipDirectory(tables),
+  unitOfWork: createPgAccessUnitOfWork(database),
+  entitlements,
+  audit: createAccessAudit(auditLog),
+  clock,
+  newId,
+});
+
+// For each request, from its business and branch headers:
+const who = await access.authorize({ userId, businessId, branchId });
+// who.permissions, who.branchIds, who.isOwner
+```
+
+Access use cases: `provisionBusiness`, `authorize`, `listBusinesses`, `listRoles`, `createRole`,
+`updateRole`, `deleteRole`, `listMembers`, `addMember`, `changeMemberRole`, `setMemberBranches`,
+`suspendMember`, `reinstateMember`, `removeMember`.
+
 None of the use cases runs offline.
 
 ## Rules worth knowing before changing anything
@@ -78,6 +103,14 @@ None of the use cases runs offline.
 - **Tokens are returned once and never stored.** Only their SHA-256 is.
 - **A passkey challenge is taken out of storage before the response is checked**, in a transaction
   that commits. Do not check first and remove after.
+- **`roles` and `memberships` are tenant-scoped; `user_businesses` is the only global access
+  table.** It only says where to look: `authorize` always reads the membership inside the
+  business before answering. Do not answer from the directory alone.
+- **Nobody grants, or acts on, access greater than their own**, the owner's membership is never
+  changed, and nobody changes their own. These checks are in `access.ts`; a new way of changing a
+  role or a member must go through them.
+- **A new resource in the permission registry needs a decision for each built-in role**, in
+  `libs/contracts/permissions/src/lib/system-roles.ts`. A test fails without one.
 - **Only `infra-webauthn` imports the WebAuthn library.** Everything else goes through the
   `PasskeyVerifier` port.
 - **Nothing here may put a phone number, an email, a code or a password in an error or a log.**
@@ -85,7 +118,8 @@ None of the use cases runs offline.
 - **Codes and passwords are never stored.** Codes are stored as a keyed hash, passwords as Argon2id.
 - A new adapter for a repository must pass its conformance suite: `userRepositoryConformance`,
   `otpRepositoryConformance`, `sessionRepositoryConformance`, `passwordAttemptsConformance`,
-  `passkeyRepositoryConformance`, `passkeyChallengeConformance`.
+  `passkeyRepositoryConformance`, `passkeyChallengeConformance`, `roleRepositoryConformance`,
+  `membershipRepositoryConformance`, `membershipDirectoryConformance`.
 
 ## Testing
 

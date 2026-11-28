@@ -24,6 +24,7 @@ these before proposing a change to how the repo is structured.
 | [0017](./0017-identity-sessions.md)                                | Sessions, token rotation and password lockout                      | Accepted                  |
 | [0018](./0018-identity-passkeys.md)                                | Passkeys                                                           | Accepted                  |
 | [0019](./0019-phone-number-validation.md)                          | Phone numbers are checked against their country's numbering        | Accepted                  |
+| [0020](./0020-identity-access.md)                                  | Access: roles, memberships and choosing a business                 | Accepted                  |
 
 ## Adding one
 

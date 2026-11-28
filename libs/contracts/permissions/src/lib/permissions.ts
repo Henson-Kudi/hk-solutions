@@ -52,6 +52,13 @@ export const RESOURCES = {
     product: 'payroll',
     actions: ['view', 'prepare', 'approve', 'pay', 'export'],
   },
+  /** The people who may enter a business. `update` covers role, branches and suspension. */
+  members: {
+    product: CORE,
+    actions: ['view', 'invite', 'update', 'remove'],
+  },
+  /** The roles of a business and what each may do. */
+  roles: { product: CORE, actions: ['view', 'manage'] },
 } as const satisfies Record<string, ResourceDef>;
 
 export type ResourceKey = keyof typeof RESOURCES;

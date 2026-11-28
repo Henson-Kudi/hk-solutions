@@ -80,6 +80,12 @@ describe('productOf and permissionsOf', () => {
       'accounts:create',
       'accounts:update',
       'accounts:archive',
+      'members:view',
+      'members:invite',
+      'members:update',
+      'members:remove',
+      'roles:view',
+      'roles:manage',
     ]);
     expect(permissionsOf('crm')).toEqual([]);
   });
