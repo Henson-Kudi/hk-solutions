@@ -1,0 +1,16 @@
+{
+  "name": "@hk/core/identity/application",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@hk/core/comms/application": "0.0.1",
+    "@hk/core/comms/domain": "0.0.1",
+    "@hk/core/identity/domain": "0.0.1",
+    "@hk/platform/universal": "0.0.1",
+    "@hk/platform/test-kit": "0.0.1"
+  }
+}
