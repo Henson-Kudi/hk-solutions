@@ -11,6 +11,7 @@
     "drizzle-kit": "^0.31.11",
     "pg": "^8.23.1",
     "@testcontainers/postgresql": "^12.2.2",
-    "@testcontainers/redis": "^12.2.2"
+    "@testcontainers/redis": "^12.2.2",
+    "testcontainers": "^12.2.2"
   }
 }

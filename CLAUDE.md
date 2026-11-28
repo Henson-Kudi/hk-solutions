@@ -35,12 +35,12 @@ Decisions and their reasons: docs/adr/ (start with 0001-architecture-baseline.md
 
 ## Commands
 - docker compose -f deploy/compose/docker-compose.yml up -d      local Postgres, Redis, fake providers
-- pnpm infra:up / pnpm infra:down                                same stack, waits until healthy (Postgres on 127.0.0.1:54320, Redis on 127.0.0.1:63790)
+- pnpm infra:up / pnpm infra:down                                same stack, waits until healthy (Postgres on 127.0.0.1:54320, Redis on 127.0.0.1:63790, S3-compatible object store on 127.0.0.1:9090)
 - pnpm verify:boundaries                                         self-test of the boundary rules; run after editing eslint.config.mjs, tools/eslint or .dependency-cruiser.cjs
 - nx run migrator:serve -- --services core,sales                run migrations
 - nx g @hk/tools:product <name>                                  new product
 - nx run-many -t test --projects=tag:runtime:universal,tag:scope:contracts,tag:scope:country-pack,tag:layer:domain,tag:layer:application --configuration=hermes   universal-runtime tests
-- HK_TEST_REDIS_URL=redis://127.0.0.1:63790 HK_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54320/hk nx affected -t test   also runs the tests that need a real Redis or Postgres (after pnpm infra:up); CI always does
+- HK_TEST_REDIS_URL=redis://127.0.0.1:63790 HK_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:54320/hk HK_TEST_S3_ENDPOINT=http://127.0.0.1:9090 nx affected -t test   also runs the tests that need a real Redis, Postgres or object store (after pnpm infra:up); CI always does
 - pnpm test:hermes                                              the line above plus a compile with the real Hermes compiler (docs/adr/0002)
 - nx run e2e:e2e
 

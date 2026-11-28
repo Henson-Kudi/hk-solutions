@@ -1,8 +1,11 @@
 import { Client } from 'pg';
 import {
+  acquireObjectStore,
   acquirePostgres,
   acquireRedis,
   containersEnabled,
+  objectStoreAvailable,
+  startObjectStoreContainer,
   startPostgresContainer,
   startRedisContainer,
   type StartedService,
@@ -42,13 +45,52 @@ describe('acquire', () => {
   it('gives nothing when no server is configured and containers are off', async () => {
     delete process.env['HK_TEST_DATABASE_URL'];
     delete process.env['HK_TEST_REDIS_URL'];
+    delete process.env['HK_TEST_S3_ENDPOINT'];
     delete process.env['HK_TEST_CONTAINERS'];
     expect(await acquirePostgres()).toBeUndefined();
     expect(await acquireRedis()).toBeUndefined();
+    expect(await acquireObjectStore()).toBeUndefined();
+    expect(objectStoreAvailable()).toBe(false);
+  });
+
+  it('uses the configured object store, with test credentials unless others are given', async () => {
+    process.env['HK_TEST_S3_ENDPOINT'] = 'http://configured:9090';
+    delete process.env['HK_TEST_S3_ACCESS_KEY'];
+    delete process.env['HK_TEST_S3_SECRET_KEY'];
+    delete process.env['HK_TEST_S3_REGION'];
+    expect(objectStoreAvailable()).toBe(true);
+    const store = await acquireObjectStore();
+    expect(store).toMatchObject({
+      endpoint: 'http://configured:9090',
+      region: 'us-east-1',
+      accessKeyId: 'test',
+      secretAccessKey: 'test',
+    });
+    await expect(store?.stop()).resolves.toBeUndefined();
+
+    process.env['HK_TEST_S3_ACCESS_KEY'] = 'other-key';
+    process.env['HK_TEST_S3_SECRET_KEY'] = 'other-secret';
+    process.env['HK_TEST_S3_REGION'] = 'eu-north-1';
+    expect(await acquireObjectStore()).toMatchObject({
+      region: 'eu-north-1',
+      accessKeyId: 'other-key',
+      secretAccessKey: 'other-secret',
+    });
   });
 });
 
 describeWithDocker('containers', () => {
+  it('starts an object store that answers on its endpoint, and removes it', async () => {
+    const store = await startObjectStoreContainer();
+    try {
+      expect(store.endpoint).toMatch(/^http:\/\/[^:]+:\d+$/);
+      const response = await fetch(store.endpoint);
+      expect(response.status).toBe(200);
+    } finally {
+      await store.stop();
+    }
+  }, 180_000);
+
   it('starts a PostgreSQL 17 that createTestSchema can use, and removes it', async () => {
     let postgres: StartedService | undefined;
     try {

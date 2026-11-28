@@ -18,6 +18,7 @@ these before proposing a change to how the repo is structured.
 | [0011](./0011-cameroon-pack-and-system-roles.md)                   | The Cameroon pack, and a shared list of system roles               | Accepted                  |
 | [0012](./0012-uae-pack-reverse-charge-and-shared-posting-rules.md) | The UAE pack, reverse charge, and shared posting rules             | Accepted                  |
 | [0013](./0013-audit-hash-chain.md)                                 | The audit hash chain, and how core libs are laid out               | Accepted                  |
+| [0014](./0014-file-storage.md)                                     | File storage                                                       | Accepted                  |
 
 ## Adding one
 

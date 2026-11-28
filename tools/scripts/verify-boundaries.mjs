@@ -70,6 +70,11 @@ const PROJECTS = [
     tags: ['scope:product', 'product:zzfix-a', 'layer:nest'],
   },
   {
+    root: 'libs/products/zzfix-a/infra-node',
+    alias: '@hk/products/zzfix-a/infra-node',
+    tags: ['scope:product', 'product:zzfix-a', 'layer:infra-node'],
+  },
+  {
     root: 'libs/products/zzfix-b/domain',
     alias: '@hk/products/zzfix-b/domain',
     tags: ['scope:product', 'product:zzfix-b', 'layer:domain'],
@@ -103,6 +108,8 @@ const CLEAN_FILES = {
   'libs/products/zzfix-a/nest/src/index.ts': `import { useCase } from '@hk/products/zzfix-a/application';\n\ndeclare const logger: { info(message: string, fields?: object): void };\n\nexport const handler = (invoiceId: string) => {\n  logger.info('invoice issued', { invoiceId });\n  return useCase();\n};\n`,
   'libs/products/zzfix-b/domain/src/index.ts': `export const otherProduct = 'b';\n`,
   'libs/products/zzfix-b/infra-pg/src/index.ts': `export const tableB = { name: 'b' };\n`,
+  // A server adapter may use its product's application layer.
+  'libs/products/zzfix-a/infra-node/src/index.ts': `import { useCase } from '@hk/products/zzfix-a/application';\n\nexport const adapter = { useCase };\n`,
   'libs/zzfix-untagged/src/index.ts': `export const untagged = 1;\n`,
   // The three places a country code may be written: a pack, seed data, a test.
   'libs/country-packs/zzfix/src/index.ts': `export const packCountry = 'CM';\n`,
@@ -187,6 +194,20 @@ const VIOLATIONS = [
     content: `import { tableB } from '@hk/products/zzfix-b/infra-pg';\n\nexport const badSchema = tableB;\n`,
     eslint: NX_RULE,
     depcruise: 'no-other-schema',
+  },
+  {
+    name: 'a server adapter (infra-node) imports the nest layer',
+    file: 'libs/products/zzfix-a/infra-node/src/lib/bad-nest-layer.ts',
+    content: `import { handler } from '@hk/products/zzfix-a/nest';\n\nexport const badAdapter = handler;\n`,
+    eslint: NX_RULE,
+    depcruise: null,
+  },
+  {
+    name: 'the application layer imports a server adapter (infra-node)',
+    file: 'libs/products/zzfix-a/application/src/lib/bad-adapter.ts',
+    content: `import { adapter } from '@hk/products/zzfix-a/infra-node';\n\nexport const badUse = adapter;\n`,
+    eslint: NX_RULE,
+    depcruise: null,
   },
   {
     name: 'domain imports the application layer',

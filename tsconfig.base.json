@@ -54,7 +54,13 @@
       "@hk/core/audit/application": [
         "./libs/core/audit/application/src/index.ts"
       ],
-      "@hk/core/audit/infra-pg": ["./libs/core/audit/infra-pg/src/index.ts"]
+      "@hk/core/audit/infra-pg": ["./libs/core/audit/infra-pg/src/index.ts"],
+      "@hk/core/files/domain": ["./libs/core/files/domain/src/index.ts"],
+      "@hk/core/files/application": [
+        "./libs/core/files/application/src/index.ts"
+      ],
+      "@hk/core/files/infra-pg": ["./libs/core/files/infra-pg/src/index.ts"],
+      "@hk/core/files/infra-s3": ["./libs/core/files/infra-s3/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

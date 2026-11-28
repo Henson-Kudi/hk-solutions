@@ -54,6 +54,17 @@ services:
       timeout: 5s
       retries: 12
 
+  # An S3-compatible object store for local development and tests: Adobe
+  # S3Mock. It keeps files in the container, so they are gone when it is
+  # removed. Production uses a real S3-compatible service.
+  objectstore:
+    image: adobe/s3mock@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92
+    restart: unless-stopped
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: ${HK_S3_BUCKET:-hk-files}
+    ports:
+      - '127.0.0.1:${HK_S3_PORT:-9090}:9090'
+
 volumes:
   postgres-data:
   redis-data:

@@ -1,5 +1,6 @@
 /**
- * Throwaway PostgreSQL and Redis servers in Docker, through Testcontainers.
+ * Throwaway PostgreSQL, Redis and object storage servers in Docker, through
+ * Testcontainers.
  *
  * Use them where a test needs a server and none is provided. CI and the
  * usual local run provide one through HK_TEST_DATABASE_URL and
@@ -18,6 +19,24 @@ export interface StartedService {
 
 export const POSTGRES_IMAGE = 'postgres:17-alpine';
 export const REDIS_IMAGE = 'redis:7-alpine';
+/**
+ * Adobe S3Mock: a server that speaks the S3 API, made for testing S3 clients.
+ * Pinned by digest so every run uses the same server.
+ */
+export const S3_IMAGE =
+  'adobe/s3mock@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92';
+const S3_PORT = 9090;
+
+/** An S3-compatible object store to test against. */
+export interface StartedObjectStore {
+  /** For example "http://127.0.0.1:9090". */
+  endpoint: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  /** Stops and removes the container. A no-op for a server this helper did not start. */
+  stop(): Promise<void>;
+}
 
 /** True when HK_TEST_CONTAINERS=1: tests may start Docker containers. */
 export const containersEnabled = (): boolean =>
@@ -84,3 +103,49 @@ export const acquireRedis = async (): Promise<StartedService | undefined> => {
   }
   return containersEnabled() ? startRedisContainer() : undefined;
 };
+
+/** Starts an S3-compatible object store in a container. Needs a running Docker daemon. */
+export const startObjectStoreContainer = async (
+  image = S3_IMAGE,
+): Promise<StartedObjectStore> => {
+  const { GenericContainer, Wait } = await import('testcontainers');
+  const container = await new GenericContainer(image)
+    .withExposedPorts(S3_PORT)
+    .withWaitStrategy(Wait.forHttp('/', S3_PORT).forStatusCode(200))
+    .start();
+  return {
+    endpoint: `http://${container.getHost()}:${container.getMappedPort(S3_PORT)}`,
+    // The mock accepts any region and any credentials. These are not secrets.
+    region: 'us-east-1',
+    accessKeyId: 'test',
+    secretAccessKey: 'test',
+    stop: async () => {
+      await container.stop();
+    },
+  };
+};
+
+/**
+ * An object store to test against: the one at HK_TEST_S3_ENDPOINT when set
+ * (see `pnpm infra:up`), otherwise a new container when HK_TEST_CONTAINERS=1,
+ * otherwise undefined, in which case the caller skips its tests.
+ */
+export const acquireObjectStore = async (): Promise<
+  StartedObjectStore | undefined
+> => {
+  const endpoint = process.env['HK_TEST_S3_ENDPOINT'];
+  if (endpoint) {
+    return {
+      endpoint,
+      region: process.env['HK_TEST_S3_REGION'] || 'us-east-1',
+      accessKeyId: process.env['HK_TEST_S3_ACCESS_KEY'] || 'test',
+      secretAccessKey: process.env['HK_TEST_S3_SECRET_KEY'] || 'test',
+      stop: async () => undefined,
+    };
+  }
+  return containersEnabled() ? startObjectStoreContainer() : undefined;
+};
+
+/** True when an object store is configured or may be started. */
+export const objectStoreAvailable = (): boolean =>
+  Boolean(process.env['HK_TEST_S3_ENDPOINT']) || containersEnabled();

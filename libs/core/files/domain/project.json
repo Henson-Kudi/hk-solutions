@@ -1,0 +1,35 @@
+{
+  "name": "core-files-domain",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/files/domain/src",
+  "projectType": "library",
+  "tags": ["scope:core", "layer:domain"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/core/files/domain",
+        "main": "libs/core/files/domain/src/index.ts",
+        "tsConfig": "libs/core/files/domain/tsconfig.lib.json",
+        "assets": ["libs/core/files/domain/*.md"]
+      }
+    },
+    "test": {
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/jest.preset.js",
+        "{workspaceRoot}/tools/jest/**/*",
+        {
+          "externalDependencies": ["jest", "@nx/jest", "ts-jest"]
+        }
+      ],
+      "configurations": {
+        "hermes": {
+          "args": ["--config=jest.hermes.config.cts"]
+        }
+      }
+    }
+  }
+}
