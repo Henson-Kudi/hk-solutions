@@ -43,7 +43,7 @@ import { OTP_WHATSAPP_TEMPLATES, otpMessage } from './otp-messages';
 
 const PHONE = '+237600000001';
 const EMAIL = 'ada@example.com';
-const PASSWORD = 'Sunrise42-blue';
+const PASSWORD = 'Sunrise42-blue'; // gitleaks:allow (made up for the tests)
 const START = '2026-11-28T09:00:00.000Z';
 
 const phoneId: Identifier = { kind: 'phone', value: PHONE };

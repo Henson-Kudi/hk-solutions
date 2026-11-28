@@ -51,6 +51,7 @@ import {
 } from './schema';
 
 // Every phone number, address, password and secret in this file is invented.
+const INVENTED = 'Sunrise42-blue'; // gitleaks:allow (made up for the tests)
 
 /**
  * The repository tests need a real PostgreSQL (HK_TEST_DATABASE_URL;
@@ -540,7 +541,7 @@ describeWithPostgres('identity on PostgreSQL', () => {
       accounts.signUp({
         name: 'Ada Example',
         phone,
-        password: 'Sunrise42-blue',
+        password: INVENTED,
         locale: 'fr',
       });
 
@@ -670,7 +671,7 @@ describeWithPostgres('identity on PostgreSQL', () => {
       const { userId } = await withSms.signUp({
         name: 'Ada Example',
         phone: PHONE,
-        password: 'Sunrise42-blue',
+        password: INVENTED,
       });
       const code = /\b(\d{6})\b/.exec(sms.last()?.text ?? '')?.[1] as string;
       await withSms.verifyCode({ identifier: PHONE, code });
@@ -694,14 +695,14 @@ describeWithPostgres('identity on PostgreSQL', () => {
 
       await withSms.changePassword({
         userId,
-        currentPassword: 'Sunrise42-blue',
+        currentPassword: INVENTED,
         newPassword: 'Brand-new-Pass9',
       });
       expect(
         await errorOf(() =>
           withSms.changePassword({
             userId,
-            currentPassword: 'Sunrise42-blue',
+            currentPassword: INVENTED,
             newPassword: 'Another-Pass10',
           }),
         ),
