@@ -1,8 +1,9 @@
 # Cameroon pack (`cm`): accountant review checklist
 
-**Status: nothing here is confirmed.** Every value in `libs/country-packs/cm` was entered from
-published sources or general knowledge of SYSCOHADA, and is marked unconfirmed in the code. A
-chartered accountant in Cameroon reviews this document before go-live. Record each confirmation
+**Status: no accountant has confirmed anything here yet.** The values in `libs/country-packs/cm`
+were entered from published sources and are marked unconfirmed in the code. One part has been
+checked against a primary source: the account numbers and names in section 4, against the
+SYSCOHADA handbook. A chartered accountant in Cameroon reviews this document before go-live. Record each confirmation
 in the table at the end, then set `confirmedBy` and `confirmedOn` on the matching source note in
 `libs/country-packs/cm/src/lib/sources.ts`.
 
@@ -82,49 +83,79 @@ part-payment therefore posts VAT at once (Dr 4191 · Cr 4431 for the VAT share).
 
 ## 4. Chart of accounts
 
-Two templates: **système normal** (85 accounts) and **SMT, système minimal de trésorerie**
-(59 accounts, the normal list without the accounts a very small entity does not use). The full
-lists are in `libs/country-packs/cm/src/lib/chart.ts`.
+Two templates: **système normal** (93 accounts) and **SMT, système minimal de trésorerie**
+(76 accounts). The full lists are in `libs/country-packs/cm/src/lib/chart.ts`.
+
+**Checked against the handbook (28 November 2026).** Every account number and French name was
+compared with the Acte uniforme relatif au droit comptable et à l'information financière (Journal
+Officiel OHADA, 15 February 2017), "Liste des comptes", pages 216 to 266. All are in the handbook
+under the number and name used here. The check corrected four names and changed the mapping:
+
+- Exchange differences are split. Differences on customer and supplier balances go to 656 and
+  756; 676 and 776 are for financial operations only (cash, bank, borrowings).
+- Rounding differences and forfeited deposits moved from 658 and 758 to their sub-accounts 6588
+  and 7588. The handbook has no account dedicated to either.
+- Added 103 Capital personnel (the owner's account, 104, is closed into it at year-end), 603,
+  6317 (fees on electronic money) and 6318.
+
+The handbook confirms numbers and names. It does not decide which account each purpose should
+use; that is still the accountant's call.
 
 The accounts the software posts to automatically:
 
-| Purpose                          | Account | Name                                                             |
-| -------------------------------- | ------- | ---------------------------------------------------------------- |
-| Customers owe us                 | 411     | Clients                                                          |
-| Advances received from customers | 4191    | Clients, avances et acomptes reçus                               |
-| We owe suppliers                 | 401     | Fournisseurs, dettes en compte                                   |
-| Advances paid to suppliers       | 4091    | Fournisseurs, avances et acomptes versés                         |
-| VAT charged                      | 4431    | TVA facturée sur ventes                                          |
-| VAT recoverable                  | 4452    | TVA récupérable sur achats                                       |
-| VAT owed after a return          | 4441    | État, TVA due                                                    |
-| VAT credit carried forward       | 4449    | État, crédit de TVA à reporter                                   |
-| Cash                             | 571     | Caisse siège social                                              |
-| Bank                             | 521     | Banques locales                                                  |
-| Mobile money                     | 552     | Monnaie électronique : téléphone portable                        |
-| Stock of goods                   | 311     | Marchandises A                                                   |
-| Purchases of goods               | 601     | Achats de marchandises                                           |
-| Cost of goods sold               | 6031    | Variations des stocks de marchandises                            |
-| Sales of goods                   | 701     | Ventes de marchandises                                           |
-| Sales of services                | 706     | Services vendus                                                  |
-| Forfeited customer deposits      | 758     | Produits divers                                                  |
-| Discounts allowed                | 673     | Escomptes accordés                                               |
-| Discounts received               | 773     | Escomptes obtenus                                                |
-| Exchange gains / losses          | 776/676 | Gains de change / Pertes de change                               |
-| Rounding differences             | 658     | Charges diverses                                                 |
-| Transfers between branches       | 185     | Comptes permanents non bloqués des établissements et succursales |
-| Retained earnings                | 121     | Report à nouveau créditeur                                       |
-| Result of the year               | 131     | Résultat net : bénéfice                                          |
+| Purpose                                 | Account | Name                                                             |
+| --------------------------------------- | ------- | ---------------------------------------------------------------- |
+| Customers owe us                        | 411     | Clients                                                          |
+| Advances received from customers        | 4191    | Clients, avances et acomptes reçus                               |
+| We owe suppliers                        | 401     | Fournisseurs, dettes en compte                                   |
+| Advances paid to suppliers              | 4091    | Fournisseurs, avances et acomptes versés                         |
+| VAT charged                             | 4431    | TVA facturée sur ventes                                          |
+| VAT recoverable                         | 4452    | TVA récupérable sur achats                                       |
+| VAT owed after a return                 | 4441    | État, TVA due                                                    |
+| VAT credit carried forward              | 4449    | État, crédit de TVA à reporter                                   |
+| Cash                                    | 571     | Caisse siège social                                              |
+| Bank                                    | 521     | Banques locales                                                  |
+| Mobile money                            | 552     | Monnaie électronique : téléphone portable                        |
+| Stock of goods                          | 311     | Marchandises A                                                   |
+| Purchases of goods                      | 601     | Achats de marchandises                                           |
+| Cost of goods sold                      | 6031    | Variations des stocks de marchandises                            |
+| Sales of goods                          | 701     | Ventes de marchandises                                           |
+| Sales of services                       | 706     | Services vendus                                                  |
+| Forfeited customer deposits             | 7588    | Autres produits divers                                           |
+| Settlement discounts allowed            | 673     | Escomptes accordés                                               |
+| Settlement discounts received           | 773     | Escomptes obtenus                                                |
+| Exchange gains / losses, trade balances | 756/656 | Gains / Perte de change sur créances et dettes commerciales      |
+| Exchange gains / losses, cash and loans | 776/676 | Gains de change financiers / Pertes de change financières        |
+| Rounding differences                    | 6588    | Autres charges diverses                                          |
+| Transfers between branches              | 185     | Comptes permanents non bloqués des établissements et succursales |
+| Retained earnings                       | 121     | Report à nouveau créditeur                                       |
+| Result of the year                      | 131     | Résultat net : bénéfice                                          |
 
 Questions:
 
-12. Are the account numbers and names correct under SYSCOHADA révisé?
-13. Is each purpose mapped to the right account? In particular: VAT on services (4432 exists but
-    all VAT charged goes to 4431), cost of goods sold through 6031, mobile money in 552, branch
-    transfers in 185, forfeited deposits in 758, rounding in 658.
-14. A loss for the year: the pack maps "result of the year" to 131 only. How should 139 be used?
-15. Is the SMT list right for an entity under the SMT thresholds? Which accounts should it not
-    have, and which are missing?
-16. What common accounts are missing from the normal list for a small trading or service
+12. ~~Are the account numbers and names correct under SYSCOHADA révisé?~~ Checked against the
+    handbook, see above.
+13. Is each purpose mapped to the right account? In particular:
+    - VAT on services: 4432 exists, but all VAT charged goes to 4431.
+    - Mobile money in 552. The handbook describes 552 as a wallet the business loads and spends
+      from (page 420). Is it also right for customer payments received straight into the wallet?
+    - Forfeited deposits in 7588 and rounding in 6588. Rounding gains would also land in 6588, an
+      expense account. Should gains go to 7588?
+    - Branch transfers in 185. The handbook reserves 184 to 187 for establishments that keep
+      their own books (pages 306 to 307). Our branches share one set of books. Is 185 still
+      right, or should transfers between branches use 585 Virements de fonds?
+14. Losses. The pack maps "result of the year" to 131 (profit) only, and retained earnings to 121
+    (credit) only. The handbook puts a loss in 139 and losses carried forward in 129. How should
+    the year-end close choose between them?
+15. Sole traders. The handbook closes the owner's account (104) and the year's result into 103
+    Capital personnel, not into 12 and 13. Should a sole trader's close work that way?
+16. SMT. The handbook gives no list of accounts for the SMT, only a cash journal, registers and
+    three statements (pages 1074 to 1083). Our SMT list is our own: the normal list without share
+    capital, reserves, company income tax and some detail accounts. Is that a sensible starting
+    chart for a business on SMT? Note that the SMT statements have no VAT line.
+17. Trade discounts (rabais, remises, ristournes) belong in the sales and purchases accounts
+    (7019, 6019), not in 673 and 773. The pack has no account for them yet. Needed at launch?
+18. What common accounts are missing from the normal list for a small trading or service
     business?
 
 ## 5. Business identity
@@ -138,10 +169,10 @@ Questions:
 
 Questions:
 
-17. Is the NIU format right for every kind of taxpayer? Is there a check character rule?
-18. Are both RCCM forms in use? Are there others?
-19. What are the current tax regimes, by their legal names, and which threshold applies to each?
-20. Are legal forms missing?
+19. Is the NIU format right for every kind of taxpayer? Is there a check character rule?
+20. Are both RCCM forms in use? Are there others?
+21. What are the current tax regimes, by their legal names, and which threshold applies to each?
+22. Are legal forms missing?
 
 ## 6. Invoices and the fiscal year
 
@@ -150,8 +181,8 @@ Questions:
 
 Questions:
 
-21. May the invoice series restart each year?
-22. Must credit notes have their own series?
+23. May the invoice series restart each year?
+24. Must credit notes have their own series?
 
 ## Not in the pack yet
 

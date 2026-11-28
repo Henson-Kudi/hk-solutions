@@ -149,14 +149,16 @@ describe('cm chart of accounts', () => {
     'cash.main': '571',
     'expense.purchases.goods': '601',
     'expense.cogs': '6031',
-    'rounding.difference': '658',
+    'fx.loss.trade': '656',
+    'rounding.difference': '6588',
     'expense.discounts_allowed': '673',
-    'fx.loss': '676',
+    'fx.loss.financial': '676',
     'income.sales.goods': '701',
     'income.sales.services': '706',
-    'income.other.forfeited_deposits': '758',
+    'fx.gain.trade': '756',
+    'income.other.forfeited_deposits': '7588',
     'income.discounts_received': '773',
-    'fx.gain': '776',
+    'fx.gain.financial': '776',
   };
 
   it('offers the normal system first, then SMT', () => {
@@ -189,8 +191,8 @@ describe('cm chart of accounts', () => {
     for (const account of SYSCOHADA_SMT.accounts) {
       expect(normal.get(account.code)).toBe(account);
     }
-    expect(SYSCOHADA_NORMAL.accounts).toHaveLength(85);
-    expect(SYSCOHADA_SMT.accounts).toHaveLength(59);
+    expect(SYSCOHADA_NORMAL.accounts).toHaveLength(93);
+    expect(SYSCOHADA_SMT.accounts).toHaveLength(76);
   });
 
   it.each([SYSCOHADA_NORMAL, SYSCOHADA_SMT])(

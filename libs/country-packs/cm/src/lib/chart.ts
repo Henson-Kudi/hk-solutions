@@ -19,9 +19,20 @@ import { localizedText } from '@hk/platform/universal';
  *
  * Class 9 (commitments and cost accounting) is left out: nothing posts to it.
  *
- * UNCONFIRMED. Account numbers and names follow the SYSCOHADA révisé plan of
- * accounts as commonly published. An accountant reviews the whole list, and
- * which account holds each role, before go-live (docs/country-packs/cm.md).
+ * Account numbers and French names were checked on 2026-11-28 against the
+ * "Liste des comptes" of the Acte uniforme relatif au droit comptable et à
+ * l'information financière (Journal Officiel OHADA, 15 February 2017, pages
+ * 216 to 266), and for a few accounts against the account's own section
+ * (pages 271 to 536). Every account here is in the handbook under this
+ * number and name. English names are our own translations.
+ *
+ * STILL UNCONFIRMED: which account holds each role, and what belongs in the
+ * SMT list. Those are judgements an accountant makes
+ * (docs/country-packs/cm.md).
+ *
+ * The plan of accounts has more levels than this template uses. 4441 and
+ * 4449 have no parent here because their parent, 444, would mix a liability
+ * and an asset.
  *
  * A SYSCOHADA class mixes account types: class 4 holds receivables and
  * payables. A parent and its sub-accounts must share a type, so where a
@@ -68,6 +79,7 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
   // Class 1: equity and long-term liabilities
   account('10', 'Capital', 'Capital', 'EQUITY', 'CAPITAL', { branchPolicy: HIDDEN }),
   account('101', 'Capital social', 'Share capital', 'EQUITY', 'CAPITAL', { parent: '10', branchPolicy: HIDDEN }),
+  account('103', 'Capital personnel', "Owner's capital", 'EQUITY', 'CAPITAL', { parent: '10', branchPolicy: HIDDEN }),
   account('104', "Compte de l'exploitant", "Owner's account", 'EQUITY', 'CAPITAL', { parent: '10', branchPolicy: HIDDEN }),
   account('11', 'Réserves', 'Reserves', 'EQUITY', 'RESERVES', { branchPolicy: HIDDEN }),
   account('111', 'Réserve légale', 'Legal reserve', 'EQUITY', 'RESERVES', { parent: '11', branchPolicy: HIDDEN }),
@@ -79,7 +91,7 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
   account('139', 'Résultat net : perte', 'Net result: loss', 'EQUITY', 'CURRENT_RESULT', { parent: '13', branchPolicy: HIDDEN }),
   account('16', 'Emprunts et dettes assimilées', 'Borrowings and similar debts', 'LIABILITY', 'BORROWINGS'),
   account('162', 'Emprunts et dettes auprès des établissements de crédit', 'Bank borrowings', 'LIABILITY', 'BORROWINGS', { parent: '16' }),
-  account('18', 'Dettes liées à des participations et comptes de liaison des établissements', 'Related-party debts and branch current accounts', 'LIABILITY', 'INTER_BRANCH', { branchPolicy: HIDDEN }),
+  account('18', 'Dettes liées à des participations et comptes de liaison des établissements et sociétés en participation', 'Related-party debts and branch current accounts', 'LIABILITY', 'INTER_BRANCH', { branchPolicy: HIDDEN }),
   account('185', 'Comptes permanents non bloqués des établissements et succursales', 'Branch current accounts', 'LIABILITY', 'INTER_BRANCH', { parent: '18', role: 'inter_branch.clearing', branchPolicy: HIDDEN }),
 
   // Class 2: fixed assets
@@ -129,25 +141,30 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
   // Class 6: expenses
   account('60', 'Achats et variations de stocks', 'Purchases and changes in stock', 'EXPENSE', 'PURCHASES'),
   account('601', 'Achats de marchandises', 'Purchases of goods for resale', 'EXPENSE', 'PURCHASES', { parent: '60', role: 'expense.purchases.goods' }),
-  account('6031', 'Variations des stocks de marchandises', 'Change in stock of goods for resale', 'EXPENSE', 'COGS', { parent: '60', role: 'expense.cogs' }),
+  account('603', 'Variations des stocks de biens achetés', 'Change in stock of purchased goods', 'EXPENSE', 'COGS', { parent: '60' }),
+  account('6031', 'Variations des stocks de marchandises', 'Change in stock of goods for resale', 'EXPENSE', 'COGS', { parent: '603', role: 'expense.cogs' }),
   account('605', 'Autres achats', 'Other purchases', 'EXPENSE', 'PURCHASES', { parent: '60' }),
   account('61', 'Transports', 'Transport', 'EXPENSE', 'OPERATING'),
   account('612', 'Transports sur ventes', 'Transport on sales', 'EXPENSE', 'OPERATING', { parent: '61' }),
   account('62', 'Services extérieurs', 'External services', 'EXPENSE', 'OPERATING'),
-  account('622', 'Locations et charges locatives', 'Rent and rental charges', 'EXPENSE', 'OPERATING', { parent: '62' }),
+  account('622', 'Locations, charges locatives', 'Rent and rental charges', 'EXPENSE', 'OPERATING', { parent: '62' }),
   account('63', 'Autres services extérieurs', 'Other external services', 'EXPENSE', 'OPERATING'),
   account('631', 'Frais bancaires', 'Bank charges', 'EXPENSE', 'OPERATING', { parent: '63' }),
+  account('6317', 'Frais sur instruments monnaie électronique', 'Electronic money fees', 'EXPENSE', 'OPERATING', { parent: '631' }),
+  account('6318', 'Autres frais bancaires', 'Other bank charges', 'EXPENSE', 'OPERATING', { parent: '631' }),
   account('64', 'Impôts et taxes', 'Taxes and duties', 'EXPENSE', 'TAXES'),
   account('641', 'Impôts et taxes directs', 'Direct taxes and duties', 'EXPENSE', 'TAXES', { parent: '64' }),
   account('65', 'Autres charges', 'Other expenses', 'EXPENSE', 'OPERATING'),
-  account('658', 'Charges diverses', 'Sundry expenses', 'EXPENSE', 'OPERATING', { parent: '65', role: 'rounding.difference' }),
+  account('656', 'Perte de change sur créances et dettes commerciales', 'Exchange losses on trade receivables and payables', 'EXPENSE', 'OPERATING', { parent: '65', role: 'fx.loss.trade' }),
+  account('658', 'Charges diverses', 'Sundry expenses', 'EXPENSE', 'OPERATING', { parent: '65' }),
+  account('6588', 'Autres charges diverses', 'Other sundry expenses', 'EXPENSE', 'OPERATING', { parent: '658', role: 'rounding.difference' }),
   account('66', 'Charges de personnel', 'Staff costs', 'EXPENSE', 'PAYROLL'),
   account('661', 'Rémunérations directes versées au personnel national', 'Salaries paid to national staff', 'EXPENSE', 'PAYROLL', { parent: '66' }),
   account('664', 'Charges sociales', 'Social charges', 'EXPENSE', 'PAYROLL', { parent: '66' }),
   account('67', 'Frais financiers et charges assimilées', 'Financial expenses', 'EXPENSE', 'FINANCIAL'),
   account('671', 'Intérêts des emprunts', 'Interest on borrowings', 'EXPENSE', 'FINANCIAL', { parent: '67' }),
   account('673', 'Escomptes accordés', 'Discounts allowed', 'EXPENSE', 'FINANCIAL', { parent: '67', role: 'expense.discounts_allowed' }),
-  account('676', 'Pertes de change', 'Exchange losses', 'EXPENSE', 'FINANCIAL', { parent: '67', role: 'fx.loss' }),
+  account('676', 'Pertes de change financières', 'Financial exchange losses', 'EXPENSE', 'FINANCIAL', { parent: '67', role: 'fx.loss.financial' }),
   account('68', 'Dotations aux amortissements', 'Depreciation', 'EXPENSE', 'DEPRECIATION'),
   account('681', "Dotations aux amortissements d'exploitation", 'Operating depreciation', 'EXPENSE', 'DEPRECIATION', { parent: '68' }),
 
@@ -157,10 +174,12 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
   account('706', 'Services vendus', 'Services sold', 'INCOME', 'SALES', { parent: '70', role: 'income.sales.services' }),
   account('707', 'Produits accessoires', 'Ancillary income', 'INCOME', 'SALES', { parent: '70' }),
   account('75', 'Autres produits', 'Other income', 'INCOME', 'OTHER_INCOME'),
-  account('758', 'Produits divers', 'Sundry income', 'INCOME', 'OTHER_INCOME', { parent: '75', role: 'income.other.forfeited_deposits' }),
+  account('756', 'Gains de change sur créances et dettes commerciales', 'Exchange gains on trade receivables and payables', 'INCOME', 'OTHER_INCOME', { parent: '75', role: 'fx.gain.trade' }),
+  account('758', 'Produits divers', 'Sundry income', 'INCOME', 'OTHER_INCOME', { parent: '75' }),
+  account('7588', 'Autres produits divers', 'Other sundry income', 'INCOME', 'OTHER_INCOME', { parent: '758', role: 'income.other.forfeited_deposits' }),
   account('77', 'Revenus financiers et produits assimilés', 'Financial income', 'INCOME', 'FINANCIAL'),
   account('773', 'Escomptes obtenus', 'Discounts received', 'INCOME', 'FINANCIAL', { parent: '77', role: 'income.discounts_received' }),
-  account('776', 'Gains de change', 'Exchange gains', 'INCOME', 'FINANCIAL', { parent: '77', role: 'fx.gain' }),
+  account('776', 'Gains de change financiers', 'Financial exchange gains', 'INCOME', 'FINANCIAL', { parent: '77', role: 'fx.gain.financial' }),
 
   // Class 8: income tax
   account('89', 'Impôts sur le résultat', 'Income tax', 'EXPENSE', 'INCOME_TAX', { branchPolicy: HIDDEN }),
@@ -168,18 +187,25 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
 ];
 
 /**
- * Accounts of the normal chart that a very small entity does not need. The
- * SMT template is the normal one without these. Every account that holds a
- * role stays, so a business on SMT can use every product.
+ * Accounts of the normal chart left out of the SMT template.
+ *
+ * The handbook prescribes no list of accounts for the SMT. It asks for a
+ * cash journal, a few registers and three short statements (pages 1074 to
+ * 1083). This template is therefore our own construction: the normal chart
+ * without what a sole trader on SMT has no use for.
+ *
+ *   - Kept, because the SMT statements have a line for them: borrowings
+ *     (16), equipment and its depreciation (24, 28, 68), taxes (64), interest
+ *     (671), the owner's capital and account (103, 104).
+ *   - Kept, because a product posts to them: every account holding a role,
+ *     including the VAT accounts, which the SMT statements do not show.
+ *   - Left out: share capital and reserves (a company's, not a sole
+ *     trader's), income tax on company profits, and detail accounts.
  */
 const NOT_IN_SMT: ReadonlySet<string> = new Set([
   '101',
   '11',
   '111',
-  '16',
-  '162',
-  '28',
-  '284',
   '4432',
   '4451',
   '4453',
@@ -191,11 +217,6 @@ const NOT_IN_SMT: ReadonlySet<string> = new Set([
   '605',
   '61',
   '612',
-  '64',
-  '641',
-  '671',
-  '68',
-  '681',
   '707',
   '89',
   '891',
@@ -229,8 +250,10 @@ export const CM_CHART: PackChart = {
       'mobile_money.main',
       'equity.retained_earnings',
       'equity.current_year_result',
-      'fx.gain',
-      'fx.loss',
+      'fx.gain.trade',
+      'fx.loss.trade',
+      'fx.gain.financial',
+      'fx.loss.financial',
       'rounding.difference',
       'inter_branch.clearing',
     ],

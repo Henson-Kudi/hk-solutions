@@ -42,8 +42,13 @@ export const SYSTEM_ROLES = {
   'inventory.goods': 'Goods held for resale',
 
   // Adjustments
-  'fx.gain': 'Exchange rate gains',
-  'fx.loss': 'Exchange rate losses',
+  // Exchange differences are split, because some frameworks (SYSCOHADA)
+  // report those on customer and supplier balances in operating result
+  // and those on cash and borrowings in financial result.
+  'fx.gain.trade': 'Exchange gains on customer and supplier balances',
+  'fx.loss.trade': 'Exchange losses on customer and supplier balances',
+  'fx.gain.financial': 'Exchange gains on cash, bank and borrowings',
+  'fx.loss.financial': 'Exchange losses on cash, bank and borrowings',
   'rounding.difference': 'Differences left by rounding to the currency',
   'inter_branch.clearing': 'Transfers between branches of one business',
 

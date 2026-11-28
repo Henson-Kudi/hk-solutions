@@ -34,7 +34,7 @@ value, and a test pins that list so a confirmation is a visible change. The rate
 date come from the tax authority's public leaflet and secondary sources; article numbers were not
 checked against the text of the law.
 
-`docs/country-packs/cm.md` is the checklist an accountant reviews: 22 questions and the VAT test
+`docs/country-packs/cm.md` is the checklist an accountant reviews: 24 questions and the VAT test
 vectors. The plan's "done when" for this row has two halves. "Conformance suite green" holds.
 "Tax test vectors reviewed by an accountant" does **not** hold yet and cannot be met by code; the
 row is complete as software and open as a review.
@@ -55,11 +55,33 @@ net by a franc, and the customer's total is the number that must be right.
 Tax is rounded per line. Both choices are on the accountant's checklist, and both are one-line
 changes behind the test vectors.
 
+### The chart was checked against the SYSCOHADA handbook
+
+Every account number and French name was compared with the "Liste des comptes" of the Acte
+uniforme relatif au droit comptable et à l'information financière (Journal Officiel OHADA, 15
+February 2017, pages 216 to 266). All are in the handbook under the number and name used. The
+handbook is not in the repository: it is a copyrighted document and the repository is public.
+
+The check changed the design in one place. SYSCOHADA reports exchange differences on customer
+and supplier balances in operating result (656, 756) and those on cash and borrowings in
+financial result (676, 776). One "exchange gain" role could not serve both, so the shared list
+has four: `fx.gain.trade`, `fx.loss.trade`, `fx.gain.financial`, `fx.loss.financial`. A country
+whose framework does not make the distinction still gives each its own account.
+
+What the handbook does not settle is which account each purpose should use. Losses are the
+clearest case: the pack maps the year's result to 131 and retained earnings to 121, and the
+handbook puts a loss in 139 and losses carried forward in 129. One role per account cannot
+express "profit here, loss there". The year-end close (phase 5) has to decide, and the
+question is on the checklist.
+
 ### Both chart templates hold every role
 
-ADR 0010 requires every role to be held in every template. The SMT template is the normal chart
-minus accounts a very small entity does not use, so it keeps every role-holding account. Whether
-SMT should be smaller still is a question for the accountant.
+ADR 0010 requires every role to be held in every template. The handbook prescribes no list of
+accounts for the SMT: it asks for a cash journal, registers and three short statements. The SMT
+template is therefore the pack's own construction, the normal chart without share capital,
+reserves, company income tax and some detail accounts. It keeps the accounts the SMT statements
+have lines for, and every role-holding account, including VAT accounts the SMT statements do not
+show.
 
 SYSCOHADA classes mix account types (class 4 holds receivables and payables), and a parent and
 its sub-accounts must share a type. Where a two-digit account would mix them, the template starts
