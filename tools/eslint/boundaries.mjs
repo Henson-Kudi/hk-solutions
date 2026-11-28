@@ -20,7 +20,11 @@
  *   client:local-db      libs/client/local-db
  *
  *   layer:domain | layer:application | layer:infra-pg | layer:infra-sqlite
- *   layer:nest | layer:ui            the split inside a product or core lib
+ *   layer:infra-node | layer:nest | layer:ui
+ *                                    the split inside a product or core lib.
+ *                                    infra-node is a server-side adapter to
+ *                                    something other than PostgreSQL: object
+ *                                    storage, an email or SMS provider.
  *
  *   product:<key>        every lib and app of one product
  *   type:app             anything under apps/
@@ -161,6 +165,16 @@ const layerRules = [
     ],
   },
   {
+    // A server-side adapter that is not a database: same reach as infra-pg.
+    sourceTag: 'layer:infra-node',
+    onlyDependOnLibsWithTags: [
+      'layer:infra-node',
+      'layer:application',
+      'layer:domain',
+      'scope:platform',
+    ],
+  },
+  {
     // Runs on desktop and mobile, so no node-only platform libs.
     sourceTag: 'layer:infra-sqlite',
     onlyDependOnLibsWithTags: [
@@ -178,6 +192,7 @@ const layerRules = [
       'layer:application',
       'layer:domain',
       'layer:infra-pg',
+      'layer:infra-node',
       'scope:platform',
       'scope:contracts',
     ],
