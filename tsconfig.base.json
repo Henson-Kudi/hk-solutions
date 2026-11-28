@@ -49,7 +49,12 @@
       "@hk/contracts/sync": ["./libs/contracts/sync/src/index.ts"],
       "@hk/country-packs/kernel": ["./libs/country-packs/kernel/src/index.ts"],
       "@hk/country-packs/cm": ["./libs/country-packs/cm/src/index.ts"],
-      "@hk/country-packs/ae": ["./libs/country-packs/ae/src/index.ts"]
+      "@hk/country-packs/ae": ["./libs/country-packs/ae/src/index.ts"],
+      "@hk/core/audit/domain": ["./libs/core/audit/domain/src/index.ts"],
+      "@hk/core/audit/application": [
+        "./libs/core/audit/application/src/index.ts"
+      ],
+      "@hk/core/audit/infra-pg": ["./libs/core/audit/infra-pg/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
