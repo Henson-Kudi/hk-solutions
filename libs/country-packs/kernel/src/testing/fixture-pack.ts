@@ -339,6 +339,9 @@ export const createFixturePack = (): CountryPack => {
       codes,
       defaultSaleCode: 'STD',
       defaultPurchaseCode: 'STD',
+      notLiableCode: 'EXEMPT',
+      // Invented rule: a business in the north region is liable.
+      isLiable: (registration) => registration['region'] === 'north',
       rounding: { level: 'line', mode: 'HALF_UP', source },
       advances: { taxDueOnReceipt: true, source },
       calculate: fixtureCalculate(codes),

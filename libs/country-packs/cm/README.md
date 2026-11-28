@@ -49,6 +49,19 @@ cmPack.tax.calculate({
 // TVA 175, CAC 18, tax 193, gross 1193
 ```
 
+## Not every business charges VAT
+
+Only a business on the régime réel is subject to VAT (Code Général des Impôts 2026, art. 132). A
+business under 50 million F CFA of turnover is on the impôt général synthétique and charges none.
+
+```ts
+cmPack.tax.isLiable({ tax_regime: 'real' }); // true
+cmPack.tax.isLiable({ tax_regime: 'igs' }); // false
+cmPack.tax.notLiableCode; // 'TVA_OUT_OF_SCOPE': the code its sales use
+```
+
+Product code asks the pack this question. It never tests the regime itself.
+
 ## Changing a rate
 
 Never edit a rate in place. Add an entry to the rate table with the day the new rate starts and

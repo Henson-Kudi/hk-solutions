@@ -30,6 +30,11 @@ import { localizedText } from '@hk/platform/universal';
  * SMT list. Those are judgements an accountant makes
  * (docs/country-packs/cm.md).
  *
+ * The handbook labels the fourth-digit accounts of 601, 701 and 706 only
+ * "dans la Région", "hors Région", "sur internet" and so on. Their names
+ * here repeat the parent's name in front so they read on their own. "La
+ * Région" is the OHADA area.
+ *
  * The plan of accounts has more levels than this template uses. 4441 and
  * 4449 have no parent here because their parent, 444, would mix a liability
  * and an asset.
@@ -140,12 +145,16 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
 
   // Class 6: expenses
   account('60', 'Achats et variations de stocks', 'Purchases and changes in stock', 'EXPENSE', 'PURCHASES'),
-  account('601', 'Achats de marchandises', 'Purchases of goods for resale', 'EXPENSE', 'PURCHASES', { parent: '60', role: 'expense.purchases.goods' }),
+  account('601', 'Achats de marchandises', 'Purchases of goods for resale', 'EXPENSE', 'PURCHASES', { parent: '60' }),
+  account('6011', 'Achats de marchandises dans la Région', 'Purchases of goods within the Region', 'EXPENSE', 'PURCHASES', { parent: '601', role: 'expense.purchases.goods' }),
+  account('6012', 'Achats de marchandises hors Région', 'Purchases of goods outside the Region', 'EXPENSE', 'PURCHASES', { parent: '601' }),
+  account('6015', 'Frais sur achats', 'Costs on purchases (freight, customs, insurance)', 'EXPENSE', 'PURCHASES', { parent: '601', role: 'expense.purchases.freight' }),
+  account('6019', 'Rabais, remises et ristournes obtenus (non ventilés)', 'Trade discounts and rebates received (not allocated)', 'EXPENSE', 'PURCHASES', { parent: '601', role: 'expense.purchases.rebates' }),
   account('603', 'Variations des stocks de biens achetés', 'Change in stock of purchased goods', 'EXPENSE', 'COGS', { parent: '60' }),
   account('6031', 'Variations des stocks de marchandises', 'Change in stock of goods for resale', 'EXPENSE', 'COGS', { parent: '603', role: 'expense.cogs' }),
   account('605', 'Autres achats', 'Other purchases', 'EXPENSE', 'PURCHASES', { parent: '60' }),
   account('61', 'Transports', 'Transport', 'EXPENSE', 'OPERATING'),
-  account('612', 'Transports sur ventes', 'Transport on sales', 'EXPENSE', 'OPERATING', { parent: '61' }),
+  account('612', 'Transports sur ventes', 'Transport on sales', 'EXPENSE', 'OPERATING', { parent: '61', role: 'expense.sales.transport' }),
   account('62', 'Services extérieurs', 'External services', 'EXPENSE', 'OPERATING'),
   account('622', 'Locations, charges locatives', 'Rent and rental charges', 'EXPENSE', 'OPERATING', { parent: '62' }),
   account('63', 'Autres services extérieurs', 'Other external services', 'EXPENSE', 'OPERATING'),
@@ -170,9 +179,16 @@ const NORMAL_ACCOUNTS: readonly ChartTemplateAccount[] = [
 
   // Class 7: income
   account('70', 'Ventes', 'Sales', 'INCOME', 'SALES'),
-  account('701', 'Ventes de marchandises', 'Sales of goods', 'INCOME', 'SALES', { parent: '70', role: 'income.sales.goods' }),
-  account('706', 'Services vendus', 'Services sold', 'INCOME', 'SALES', { parent: '70', role: 'income.sales.services' }),
+  account('701', 'Ventes de marchandises', 'Sales of goods', 'INCOME', 'SALES', { parent: '70' }),
+  account('7011', 'Ventes de marchandises dans la Région', 'Sales of goods within the Region', 'INCOME', 'SALES', { parent: '701', role: 'income.sales.goods' }),
+  account('7012', 'Ventes de marchandises hors Région', 'Sales of goods outside the Region', 'INCOME', 'SALES', { parent: '701' }),
+  account('7015', 'Ventes de marchandises sur internet', 'Sales of goods on the internet', 'INCOME', 'SALES', { parent: '701' }),
+  account('7019', 'Rabais, remises, ristournes accordés (non ventilés)', 'Trade discounts and rebates given (not allocated)', 'INCOME', 'SALES', { parent: '701', role: 'income.sales.rebates' }),
+  account('706', 'Services vendus', 'Services sold', 'INCOME', 'SALES', { parent: '70' }),
+  account('7061', 'Services vendus dans la Région', 'Services sold within the Region', 'INCOME', 'SALES', { parent: '706', role: 'income.sales.services' }),
+  account('7069', 'Rabais, remises, ristournes accordés sur services (non ventilés)', 'Trade discounts and rebates given on services (not allocated)', 'INCOME', 'SALES', { parent: '706' }),
   account('707', 'Produits accessoires', 'Ancillary income', 'INCOME', 'SALES', { parent: '70' }),
+  account('7071', 'Ports, emballages perdus et autres frais facturés', 'Carriage, packaging and other costs invoiced', 'INCOME', 'SALES', { parent: '707', role: 'income.sales.freight' }),
   account('75', 'Autres produits', 'Other income', 'INCOME', 'OTHER_INCOME'),
   account('756', 'Gains de change sur créances et dettes commerciales', 'Exchange gains on trade receivables and payables', 'INCOME', 'OTHER_INCOME', { parent: '75', role: 'fx.gain.trade' }),
   account('758', 'Produits divers', 'Sundry income', 'INCOME', 'OTHER_INCOME', { parent: '75' }),
@@ -215,9 +231,9 @@ const NOT_IN_SMT: ReadonlySet<string> = new Set([
   '477',
   '585',
   '605',
-  '61',
-  '612',
-  '707',
+  '6012',
+  '7012',
+  '7069',
   '89',
   '891',
 ]);
@@ -263,6 +279,9 @@ export const CM_CHART: PackChart = {
       'income.sales.goods',
       'income.sales.services',
       'income.other.forfeited_deposits',
+      'income.sales.freight',
+      'income.sales.rebates',
+      'expense.sales.transport',
       'expense.discounts_allowed',
       'vat.output',
     ],
@@ -270,6 +289,8 @@ export const CM_CHART: PackChart = {
       'ap.trade',
       'supplier_advances',
       'expense.purchases.goods',
+      'expense.purchases.freight',
+      'expense.purchases.rebates',
       'income.discounts_received',
       'vat.input',
     ],

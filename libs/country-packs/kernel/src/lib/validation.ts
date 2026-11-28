@@ -537,6 +537,18 @@ export const findPackIssues = (pack: CountryPack): PackIssue[] => {
     report('tax', 'advances.taxDueOnReceipt must be true or false');
   }
   checkSource('tax', 'advances', pack.tax?.advances?.source);
+  const notLiable = codes.find((code) => code.code === pack.tax?.notLiableCode);
+  if (!notLiable) {
+    report('tax', 'notLiableCode is not one of the codes');
+  } else if (
+    notLiable.treatment !== 'out_of_scope' &&
+    notLiable.treatment !== 'exempt'
+  ) {
+    report('tax', 'notLiableCode must be an out-of-scope or exempt code');
+  }
+  if (typeof pack.tax?.isLiable !== 'function') {
+    report('tax', 'isLiable is missing');
+  }
   if (typeof pack.tax?.calculate !== 'function') {
     report('tax', 'calculate is missing');
   }

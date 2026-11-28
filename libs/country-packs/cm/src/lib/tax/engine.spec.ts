@@ -10,7 +10,13 @@ import { Decimal, Money, localizedText } from '@hk/platform/universal';
 import { STANDARD_VAT_VECTORS } from '../../testing/vat-vectors';
 import { SOURCES } from '../sources';
 import { CAC_SHARE_OF_VAT, CM_TAX_CODES } from './codes';
-import { CM_TAX_ROUNDING, createCmTaxEngine } from './engine';
+import { CM_REGISTRATION_FIELDS } from '../business';
+import {
+  CM_TAX_REGIME_FIELD,
+  CM_TAX_ROUNDING,
+  createCmTaxEngine,
+  isLiableForCmVat,
+} from './engine';
 
 const DATE = '2026-01-15';
 const engine = createCmTaxEngine();
@@ -373,5 +379,44 @@ describe('Cameroon VAT: a whole document', () => {
       request([['1000', 'TVA_EXEMPT']], { date: '1990-01-01' }),
     );
     expect(result.ok && result.value.totalTax.isZero()).toBe(true);
+  });
+});
+
+describe('Cameroon VAT: who is liable', () => {
+  // Code Général des Impôts 2026, art. 132: only the actual earnings regime.
+  it.each([
+    ['real', true],
+    ['igs', false],
+    ['non_profit', false],
+    ['non_professional', false],
+  ])('a business on the %s regime: liable is %s', (regime, expected) => {
+    expect(engine.isLiable({ tax_regime: regime })).toBe(expected);
+  });
+
+  it('has an answer for every regime onboarding offers', () => {
+    const field = CM_REGISTRATION_FIELDS.find(
+      (item) => item.key === CM_TAX_REGIME_FIELD,
+    );
+    const regimes = field?.options?.map((option) => option.key) ?? [];
+    expect(regimes).toContain('real');
+    expect(
+      regimes.filter((regime) => isLiableForCmVat({ tax_regime: regime })),
+    ).toEqual(['real']);
+  });
+
+  it('treats a missing, unknown or differently-cased regime as not liable', () => {
+    expect(engine.isLiable({})).toBe(false);
+    expect(engine.isLiable({ tax_regime: '' })).toBe(false);
+    expect(engine.isLiable({ tax_regime: 'REAL' })).toBe(false);
+    expect(engine.isLiable({ tax_regime: 'simplified' })).toBe(false);
+    expect(engine.isLiable({ regime: 'real' })).toBe(false);
+  });
+
+  it('gives a business that is not liable a code that charges nothing', () => {
+    expect(engine.notLiableCode).toBe('TVA_OUT_OF_SCOPE');
+    const result = calculate(request([['50000', engine.notLiableCode]]));
+    expect(result.totalTax.isZero()).toBe(true);
+    expect(result.totalGross.amount.toString()).toBe('50000');
+    expect(result.lines[0]?.components).toEqual([]);
   });
 });

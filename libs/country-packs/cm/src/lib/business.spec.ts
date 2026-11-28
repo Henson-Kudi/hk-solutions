@@ -122,9 +122,10 @@ describe('registration fields', () => {
 
   it('offers the tax regimes as a choice', () => {
     expect(field('tax_regime').options?.map((option) => option.key)).toEqual([
+      'igs',
       'real',
-      'simplified',
-      'flat',
+      'non_profit',
+      'non_professional',
     ]);
   });
 

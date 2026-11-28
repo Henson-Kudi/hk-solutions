@@ -60,6 +60,22 @@ export const CM_POSTING_RULES: PostingRuleSetSeed = {
       ANALYTIC,
     ),
     rule('sales.invoice.issued', 'line.tax', 'credit', 'vat.output', BRANCH),
+    // Transport and delivery charged to the customer on the invoice.
+    rule(
+      'sales.invoice.issued',
+      'line.freight',
+      'credit',
+      'income.sales.freight',
+      ANALYTIC,
+    ),
+    // A rebate not tied to one line, shown on the invoice or on a credit note.
+    rule(
+      'sales.invoice.issued',
+      'line.rebate',
+      'debit',
+      'income.sales.rebates',
+      ANALYTIC,
+    ),
     // Advances applied to the invoice at collection: Dr advances, Cr receivable.
     rule(
       'sales.invoice.issued',
@@ -124,6 +140,21 @@ export const CM_POSTING_RULES: PostingRuleSetSeed = {
       ANALYTIC,
     ),
     rule('purchases.bill.recorded', 'line.tax', 'debit', 'vat.input', BRANCH),
+    // Transport, customs and insurance the supplier charged on the bill.
+    rule(
+      'purchases.bill.recorded',
+      'line.freight',
+      'debit',
+      'expense.purchases.freight',
+      ANALYTIC,
+    ),
+    rule(
+      'purchases.bill.recorded',
+      'line.rebate',
+      'credit',
+      'expense.purchases.rebates',
+      ANALYTIC,
+    ),
     rule(
       'purchases.bill.recorded',
       'line.payable',

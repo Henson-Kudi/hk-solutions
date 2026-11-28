@@ -147,14 +147,19 @@ describe('cm chart of accounts', () => {
     'bank.main': '521',
     'mobile_money.main': '552',
     'cash.main': '571',
-    'expense.purchases.goods': '601',
+    'expense.purchases.goods': '6011',
+    'expense.purchases.freight': '6015',
+    'expense.purchases.rebates': '6019',
     'expense.cogs': '6031',
+    'expense.sales.transport': '612',
     'fx.loss.trade': '656',
     'rounding.difference': '6588',
     'expense.discounts_allowed': '673',
     'fx.loss.financial': '676',
-    'income.sales.goods': '701',
-    'income.sales.services': '706',
+    'income.sales.goods': '7011',
+    'income.sales.rebates': '7019',
+    'income.sales.services': '7061',
+    'income.sales.freight': '7071',
     'fx.gain.trade': '756',
     'income.other.forfeited_deposits': '7588',
     'income.discounts_received': '773',
@@ -191,8 +196,8 @@ describe('cm chart of accounts', () => {
     for (const account of SYSCOHADA_SMT.accounts) {
       expect(normal.get(account.code)).toBe(account);
     }
-    expect(SYSCOHADA_NORMAL.accounts).toHaveLength(93);
-    expect(SYSCOHADA_SMT.accounts).toHaveLength(76);
+    expect(SYSCOHADA_NORMAL.accounts).toHaveLength(104);
+    expect(SYSCOHADA_SMT.accounts).toHaveLength(87);
   });
 
   it.each([SYSCOHADA_NORMAL, SYSCOHADA_SMT])(
@@ -269,12 +274,14 @@ describe('cm posting rules', () => {
       .filter((rule) => rule.eventType === eventType)
       .map((rule) => `${rule.side} ${rule.role} (${rule.lineKind})`);
 
-  it('posts a sales invoice: receivable against revenue and VAT', () => {
+  it('posts a sales invoice: receivable against revenue, VAT, transport and rebates', () => {
     expect(journal('sales.invoice.issued')).toEqual([
       'debit ar.trade (line.receivable)',
       'credit income.sales.goods (line.revenue.goods)',
       'credit income.sales.services (line.revenue.services)',
       'credit vat.output (line.tax)',
+      'credit income.sales.freight (line.freight)',
+      'debit income.sales.rebates (line.rebate)',
       'debit customer_advances (line.advance_applied)',
       'credit ar.trade (line.advance_settled)',
     ]);
@@ -299,6 +306,8 @@ describe('cm posting rules', () => {
     expect(journal('purchases.bill.recorded')).toEqual([
       'debit expense.purchases.goods (line.purchase.goods)',
       'debit vat.input (line.tax)',
+      'debit expense.purchases.freight (line.freight)',
+      'credit expense.purchases.rebates (line.rebate)',
       'credit ap.trade (line.payable)',
     ]);
   });

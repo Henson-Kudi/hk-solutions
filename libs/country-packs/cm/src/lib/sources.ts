@@ -3,44 +3,47 @@ import type { SourceNote } from '@hk/country-packs/kernel';
 /**
  * Where the Cameroon pack's values come from.
  *
- * NONE OF THESE IS CONFIRMED. No note carries `confirmedBy`, so
- * findUnconfirmedValues(cmPack) lists every one of them. An accountant in
- * Cameroon confirms each value before go-live (plan open item 1), and the
- * questions for them are in docs/country-packs/cm.md.
+ * The references below were read in the Code Général des Impôts, édition
+ * 2026, published by the Direction Générale des Impôts (French and English
+ * versions), on 2026-11-28. The article numbers and the rules quoted are as
+ * printed there.
  *
- * The references name the law as it is commonly cited. The article numbers
- * were not checked against the text of the Code Général des Impôts.
+ * NONE IS CONFIRMED BY AN ACCOUNTANT. No note carries `confirmedBy`, so
+ * findUnconfirmedValues(cmPack) lists every one of them. Reading the law is
+ * not the same as applying it correctly: an accountant in Cameroon confirms
+ * each value before go-live (plan open item 1), and the questions for them
+ * are in docs/country-packs/cm.md.
+ *
+ * What the 2026 edition does not tell us is when each rate began. The pack
+ * takes 2005-01-01 from a secondary source; that date is a question on the
+ * checklist.
  */
 
-const DGI_VAT_LEAFLET =
-  'https://www.impots.cm/sites/default/files/documents/ok%20DEPLIANT%20TVA%20et%20DA.pdf';
+const CGI = 'Code Général des Impôts, édition 2026 (DGI)';
 
 export const SOURCES = {
   vatStandardRate: {
-    reference:
-      'Code Général des Impôts, art. 142: taux général de la TVA 17,5 %. DGI, dépliant "TVA et droits d\'accises". Date of entry into force to confirm.',
-    url: DGI_VAT_LEAFLET,
+    reference: `${CGI}, art. 142 (1) a: taux général 17,5 %. Start date not verified.`,
   },
   vatCommunalSurcharge: {
-    reference:
-      'Centimes additionnels communaux: 10 % du montant de la TVA, soit 1,75 % de la base (taux global 19,25 %). DGI, dépliant "TVA et droits d\'accises". Date of entry into force to confirm.',
-    url: DGI_VAT_LEAFLET,
+    reference: `${CGI}, art. C 83 (1): centimes additionnels communaux, 10 % du principal de la TVA, soit 1,75 % de la base; art. 142 (2). Start date not verified.`,
   },
   vatZeroRate: {
-    reference:
-      'Code Général des Impôts, art. 142: taux zéro applicable aux exportations. DGI, dépliant "TVA et droits d\'accises".',
-    url: DGI_VAT_LEAFLET,
+    reference: `${CGI}, art. 142 (1) a et (4): taux zéro, exportations de produits taxables. Start date not verified.`,
   },
   vatRounding: {
-    reference:
-      'No published rule found. The XAF has no minor unit; the pack rounds the 19,25 % total half up to the franc and gives the surcharge the remainder. To confirm with the accountant.',
+    reference: `${CGI}, art. 141: la base imposable est arrondie au millier de F CFA inférieur. The pack does NOT apply this to invoice lines: it rounds the tax half up to the franc and gives the surcharge the remainder. Whether art. 141 applies to each invoice or only to the monthly return is to confirm.`,
   },
   vatOnAdvances: {
-    reference:
-      "Code Général des Impôts, art. 133 et 134 (fait générateur et exigibilité): la TVA est exigible à l'encaissement des acomptes et avances. Article text not checked.",
+    reference: `${CGI}, art. 134 (1) a et b: en cas de versement d'un acompte, la taxe devient exigible au moment de son encaissement, à concurrence du montant encaissé.`,
+  },
+  vatLiability: {
+    reference: `${CGI}, art. 132: seules sont soumises à la TVA les personnes imposables selon le régime réel; art. 93 quater: seuils du régime réel et de l'impôt général synthétique.`,
+  },
+  taxRegimes: {
+    reference: `${CGI}, art. 93 ter et 93 quater.`,
   },
   invoiceNumbering: {
-    reference:
-      'Code Général des Impôts, mentions obligatoires des factures: numérotation dans une série continue. Whether the series restarts each year is to confirm.',
+    reference: `${CGI}, art. 150 (5) lists what an invoice must show and does not mention numbering. Gap-free numbering in a series that never restarts is the pack's own cautious default, to confirm.`,
   },
 } as const satisfies Record<string, SourceNote>;

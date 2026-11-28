@@ -34,10 +34,18 @@ export const SYSTEM_ROLES = {
   'income.sales.services': 'Sales of services',
   'income.other.forfeited_deposits': 'Customer deposits kept after a forfeit',
   'income.discounts_received': 'Settlement discounts from suppliers',
+  'income.sales.freight': 'Transport and delivery charged to customers',
+  'income.sales.rebates':
+    'Trade discounts and rebates given to customers, not tied to a sale line',
 
   // Expenses and stock
   'expense.purchases.goods': 'Purchases of goods for resale',
   'expense.cogs': 'Cost of the goods that were sold',
+  'expense.purchases.freight':
+    'Transport, customs and other costs paid on purchases',
+  'expense.purchases.rebates':
+    'Trade discounts and rebates from suppliers, not tied to a purchase line',
+  'expense.sales.transport': 'Transport paid to deliver sales',
   'expense.discounts_allowed': 'Settlement discounts given to customers',
   'inventory.goods': 'Goods held for resale',
 

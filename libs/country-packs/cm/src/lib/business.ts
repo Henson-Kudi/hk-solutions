@@ -158,20 +158,35 @@ export const CM_REGISTRATION_FIELDS: readonly FieldDef[] = [
     label: localizedText('Tax regime', "Régime d'imposition"),
     required: true,
     kind: 'select',
+    // Code Général des Impôts 2026, art. 93 ter. The regime follows from
+    // turnover (art. 93 quater): the general synthetic tax below 50 million
+    // F CFA a year (30 million for liberal professions), the actual earnings
+    // regime from there up. Only the actual earnings regime charges VAT
+    // (art. 132); see CM_VAT_LIABLE_REGIME in tax/engine.ts.
     options: [
       {
-        key: 'real',
-        label: localizedText('Actual earnings regime', 'Régime du réel'),
-      },
-      {
-        key: 'simplified',
-        label: localizedText('Simplified regime', 'Régime simplifié'),
-      },
-      {
-        key: 'flat',
+        key: 'igs',
         label: localizedText(
-          'Flat-rate tax (small taxpayers)',
-          'Impôt forfaitaire (petits contribuables)',
+          'General synthetic tax (IGS)',
+          'Impôt général synthétique (IGS)',
+        ),
+      },
+      {
+        key: 'real',
+        label: localizedText('Actual earnings regime', 'Régime réel'),
+      },
+      {
+        key: 'non_profit',
+        label: localizedText(
+          'Non-profit organisation',
+          'Organisme à but non lucratif',
+        ),
+      },
+      {
+        key: 'non_professional',
+        label: localizedText(
+          'Non-professional taxpayer',
+          'Contribuable non professionnel',
         ),
       },
     ],

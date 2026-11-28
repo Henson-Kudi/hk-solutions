@@ -455,6 +455,49 @@ const taxCases: Case[] = [
     },
   },
   {
+    name: 'tax: a business with no registration answers is not liable',
+    run: async ({ pack }) => {
+      // Failing closed: charging tax by mistake is worse than not charging.
+      expectEqual(pack.tax.isLiable({}), false, 'liable with no answers');
+      expectEqual(
+        pack.tax.isLiable({ no_such_field: 'anything' }),
+        false,
+        'liable with unknown answers',
+      );
+      // Whatever the answers, the question has an answer.
+      for (const field of pack.business.registrationFields) {
+        for (const option of field.options ?? []) {
+          expectTrue(
+            typeof pack.tax.isLiable({ [field.key]: option.key }) === 'boolean',
+            `isLiable answers for ${field.key}=${option.key}`,
+          );
+        }
+      }
+    },
+  },
+  {
+    name: 'tax: the code for a business that is not liable charges nothing',
+    run: async (subject) => {
+      const { tax } = subject.pack;
+      const code = tax.codes.find(
+        (candidate) => candidate.code === tax.notLiableCode,
+      );
+      if (!code) {
+        throw new ConformanceFailure('the not-liable code is missing');
+      }
+      const result = calculated(
+        subject,
+        requestFor(subject, code, 'sale'),
+        'not-liable code',
+      );
+      expectTrue(result.totalTax.isZero(), 'not-liable code: no tax');
+      expectTrue(
+        result.lines.every((line) => line.components.length === 0),
+        'not-liable code: no tax components',
+      );
+    },
+  },
+  {
     name: 'tax: an unknown code is refused',
     run: async (subject) => {
       const result = subject.pack.tax.calculate({

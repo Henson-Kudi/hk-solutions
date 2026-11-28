@@ -44,6 +44,26 @@ export const CM_TAX_ROUNDING: TaxRounding = {
   source: SOURCES.vatRounding,
 };
 
+/** The key of the registration field that holds the tax regime (business.ts). */
+export const CM_TAX_REGIME_FIELD = 'tax_regime';
+
+/** The one regime whose businesses charge and recover VAT. */
+export const CM_VAT_LIABLE_REGIME = 'real';
+
+/**
+ * Only a business on the actual earnings regime is subject to VAT (Code
+ * Général des Impôts 2026, art. 132). A business on the general synthetic
+ * tax, a non-profit and a non-professional taxpayer charge none, and an
+ * unknown or missing regime is treated the same way.
+ *
+ * Not handled here: public bodies and listed companies withhold VAT when
+ * they pay any supplier, whatever its regime (art. 149 (2)). That is a rule
+ * about payments, for the sales product.
+ */
+export const isLiableForCmVat = (
+  registration: Readonly<Record<string, string>>,
+): boolean => registration[CM_TAX_REGIME_FIELD] === CM_VAT_LIABLE_REGIME;
+
 const unknownCode = (): DomainError =>
   new DomainError(TAX_ERRORS.CODE_UNKNOWN, 'The tax code is not known.');
 
@@ -139,6 +159,8 @@ export const createCmTaxEngine = (
     codes,
     defaultSaleCode: 'TVA_STD',
     defaultPurchaseCode: 'TVA_STD',
+    notLiableCode: 'TVA_OUT_OF_SCOPE',
+    isLiable: isLiableForCmVat,
     rounding: CM_TAX_ROUNDING,
     advances: { taxDueOnReceipt: true, source: SOURCES.vatOnAdvances },
     calculate,

@@ -626,6 +626,30 @@ describe('findPackIssues', () => {
       'defaultPurchaseCode is not one of the codes',
     ],
     [
+      'a not-liable code that does not exist',
+      (d) => {
+        d.tax.notLiableCode = 'NONE';
+      },
+      'tax',
+      'notLiableCode is not one of the codes',
+    ],
+    [
+      'a not-liable code that charges tax',
+      (d) => {
+        d.tax.notLiableCode = 'STD';
+      },
+      'tax',
+      'notLiableCode must be an out-of-scope or exempt code',
+    ],
+    [
+      'no rule for who is liable',
+      (d) => {
+        (d.tax as { isLiable?: unknown }).isLiable = undefined;
+      },
+      'tax',
+      'isLiable is missing',
+    ],
+    [
       'a rounding mode that does not exist',
       (d) => {
         (d.tax.rounding as { mode: string }).mode = 'NEAREST';

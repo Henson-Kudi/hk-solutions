@@ -346,6 +346,23 @@ describe('pack conformance suite', () => {
         ['tax: the same request gives the same answer'],
       ],
       [
+        'treats every business as liable for the tax',
+        (d) => {
+          d.tax.isLiable = () => true;
+        },
+        ['tax: a business with no registration answers is not liable'],
+      ],
+      [
+        'throws when asked who is liable',
+        (d) => {
+          d.tax.isLiable = (registration) => {
+            if (registration['region'] === undefined) return false;
+            throw new Error('boom');
+          };
+        },
+        ['tax: a business with no registration answers is not liable'],
+      ],
+      [
         'treats an unknown tax code as untaxed',
         (d) => {
           const calculate = fixtureCalculate(d.tax.codes);

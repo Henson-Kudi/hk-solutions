@@ -325,6 +325,19 @@ export interface TaxEngine {
   readonly defaultSaleCode: string;
   /** The code proposed for a new purchase line. */
   readonly defaultPurchaseCode: string;
+  /**
+   * The code for the sales of a business that is not liable for the tax.
+   * Its treatment is out of scope or exempt, so it charges nothing.
+   */
+  readonly notLiableCode: string;
+  /**
+   * Whether a business charges this tax on its sales and recovers it on its
+   * purchases, given its answers to the pack's registration fields (keyed by
+   * field key). In many countries a small business is outside the tax
+   * altogether. Products ask this; they never test a regime or a threshold
+   * themselves. Unknown or missing answers mean not liable.
+   */
+  isLiable(registration: Readonly<Record<string, string>>): boolean;
   readonly rounding: TaxRounding;
   readonly advances: AdvanceRule;
   /**
